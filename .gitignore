@@ -1,0 +1,31 @@
+# Node
+node_modules/
+dist/
+coverage/
+
+# Build artifacts
+allure-report/
+allure-results/
+
+# IDE
+.idea/
+.vscode/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+videos/
+screenshots/
+
+# Logs
+logs/
+*.log
+
+# Env files
+.env
+.env.local
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db

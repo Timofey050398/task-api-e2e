@@ -17,19 +17,21 @@ export class PublicClient {
         new LogInterceptor(this.client);
     }
 
-    async get(url, params = {}) {
-        return this.client.get(url, { params });
+    async get(url, params = {}, options = {}) {
+        return this.client.get(url, { params, ...options });
     }
 
-    async post(url, body = {}) {
-        return this.client.post(url, body);
+    // options позволяет пробрасывать дополнительные заголовки (например, cookie сессии)
+    // для многошаговых сценариев авторизации, где подтверждение должно выполняться в той же сессии.
+    async post(url, body = {}, options = {}) {
+        return this.client.post(url, body, options);
     }
 
-    async put(url, body = {}) {
-        return this.client.put(url, body);
+    async put(url, body = {}, options = {}) {
+        return this.client.put(url, body, options);
     }
 
-    async delete(url) {
-        return this.client.delete(url);
+    async delete(url, options = {}) {
+        return this.client.delete(url, options);
     }
 }

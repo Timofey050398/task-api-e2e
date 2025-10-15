@@ -10,11 +10,14 @@ import {generateEmail, generatePassword} from "../../utils/randomGenerator";
 import {assertCode, assertEquals} from "../../utils/allureUtils";
 import {step} from "allure-js-commons";
 import {MailTmService} from "../../services/mail/MailTmService";
+import {USER_ONE} from "../../constants/Users";
+
+const user = USER_ONE;
 
 test.describe('change password flow', () => {
     test.setTimeout(60000);
     test('should successfully change password', async () => {
-        await new LoginService().changePassword();
+        await new LoginService(user).changePassword();
     });
     test('should get error when reset email not valid', async () => {
         const client = new LoginClient();
@@ -40,7 +43,7 @@ test.describe('change password flow', () => {
     });
     test('should get error when code wrong', async () => {
         const client = new LoginClient();
-        const login = process.env.TEST_USER_LOGIN;
+        const login = user.login;
         const resetPasswordResponse = await client.resetPassword(login);
         await assertCode(resetPasswordResponse.status, 200);
 
@@ -53,8 +56,8 @@ test.describe('change password flow', () => {
 
     test('should get error when code old', async () => {
         const loginClient = new LoginClient();
-        const mailService = new MailTmService();
-        const login = process.env.TEST_USER_LOGIN;
+        const mailService = new MailTmService(user);
+        const login = user.login;
         await mailService.init();
         let resetPasswordResponse = await loginClient.resetPassword(login);
         await assertCode(resetPasswordResponse.status, 200);
@@ -72,8 +75,8 @@ test.describe('change password flow', () => {
 
     test('should get error when password incorrect', async () => {
         const loginClient = new LoginClient();
-        const mailService = new MailTmService();
-        const login = process.env.TEST_USER_LOGIN;
+        const mailService = new MailTmService(user);
+        const login = user.login;
         await mailService.init();
 
         let resetPasswordResponse = await loginClient.resetPassword(login);
@@ -88,7 +91,7 @@ test.describe('change password flow', () => {
 
         try {
             if (response.status === 200) {
-                await new LoginService().changePassword();
+                await new LoginService(user).changePassword();
             }
         } finally {
             await step('assert get reset password token response', async () => {

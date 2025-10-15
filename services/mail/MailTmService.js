@@ -1,11 +1,12 @@
 import {MailTmClient} from "../../api/clients/mail/MailTmClient";
 import {attachment} from "allure-js-commons";
 import {decodeMessage} from "../../utils/messageDecoder";
+import {USER_ONE} from "../../constants/Users";
 
 export class MailTmService {
-    constructor(email = process.env.MAILTM_EMAIL, password = process.env.TEST_USER_PASS) {
-        this.email = email;
-        this.password = password;
+    constructor(user = USER_ONE) {
+        this.email = user.email;
+        this.password = user.password;
         this.client = new MailTmClient();
     }
 
@@ -13,15 +14,6 @@ export class MailTmService {
      * Инициализация: если email не задан — генерирует новый ящик
      */
     async init() {
-        if (!this.email) {
-            const { data: domainData } = await this.client.getDomains();
-            const domain = domainData["hydra:member"][0].domain;
-
-            this.email = `user_${Date.now()}@${domain}`;
-
-            await this.client.createAccount(this.email, this.password);
-        }
-
         // Авторизация
         const { data } = await this.client.getToken(this.email,this.password);
 
@@ -94,7 +86,7 @@ export class MailTmService {
                 const msg = messages[0];
                 const received = new Date(msg.updatedAt).getTime();
                 if (received > start) {
-                    console.log(`📩 New message detected (${msg.id}) at ${msg.createdAt}`);
+                    console.log(`📩 New message detected (${msg.id}) at ${msg.updatedAt}`);
                     return msg;
                 }
             }

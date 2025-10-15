@@ -3,23 +3,23 @@ const { TelegramClient } = require('telegram');          // ✅ добавляе
 const { StringSession } = require('telegram/sessions');
 require('dotenv').config();
 const input = require('input');
-
-const apiId = Number(process.env.TG_API_ID);
-const apiHash = process.env.TG_API_HASH;
-const phoneNumber = process.env.TG_PHONE_NUMBER;
+const {USER_ONE} = require("../../constants/Users");
 
 /**
  * Скрипт для получения ключа TG_SESSION.
  * Ключ постоянный, но уникален для аккаунта и IP.
  */
 class TelegramSessionGenerator {
-    constructor() {
+    constructor(user = USER_ONE) {
         this.session = new StringSession('');
         this.client = null;
+        this.apiId = user.tgApiId;
+        this.apiHash = user.tgHash;
+        this.phoneNumer = user.phoneNumber;
     }
 
     async connect() {
-        this.client = new TelegramClient(this.session, apiId, apiHash, {
+        this.client = new TelegramClient(this.session, this.apiId, this.apiHash, {
             connectionRetries: 5
         });
         await this.client.connect();
@@ -31,6 +31,9 @@ class TelegramSessionGenerator {
             console.log('[Telegram] Already authorized.');
             return this.client.session.save();
         }
+        const apiId = this.apiId;
+        const apiHash = this.apiHash;
+        const phoneNumber = this.phoneNumer;
 
         console.log('[Telegram] Not authorized — performing sign-in...');
         const sendCodeResult = await this.client.sendCode({ apiId, apiHash }, phoneNumber);

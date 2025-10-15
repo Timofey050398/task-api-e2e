@@ -1,8 +1,11 @@
-import {PublicClient} from "./core/publicClient";
+import {PublicClient} from "./core/PublicClient";
+
+export const INVALID_CONFIRMATION_CODE = 'INVALID_CONFIRMATION_CODE';
+export const INVALID_LOGIN_OR_PASSWORD = 'INVALID_LOGIN_OR_PASSWORD';
 
 export class LoginClient extends PublicClient {
-    constructor() {
-        super();
+    constructor(processErrors = true) {
+        super(processErrors);
         this.cookies = '';
     }
 

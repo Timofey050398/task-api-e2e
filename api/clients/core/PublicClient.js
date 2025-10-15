@@ -1,9 +1,10 @@
 import { config } from '../../config.js';
 import axios from "axios";
-import {LogInterceptor} from "./interceptors/logInterceptor";
+import {LogInterceptor} from "./interceptors/LogInterceptor";
+import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";
 
 export class PublicClient {
-    constructor(baseUrl = config.baseUrl) {
+    constructor(processErrors = true, baseUrl = config.baseUrl) {
         this.client = axios.create({
             baseURL: baseUrl,
             withCredentials: true,
@@ -12,9 +13,11 @@ export class PublicClient {
                 'Accept': '*/*',
                 'locale': 'ru',
             },
-            validateStatus: () => true,
+            validateStatus: (status) =>
+                processErrors ? true : status >= 200 && status < 300,
         });
         new LogInterceptor(this.client);
+        new AllureAxiosInterceptor(this.client);
     }
 
     async get(url, params = {}, options = {}) {

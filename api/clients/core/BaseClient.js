@@ -1,8 +1,9 @@
 import { config } from '../../config.js';
 import { AuthCache } from '../../utils/AuthCache.js';
-import { LoginService } from '../../services/loginService.js';
+import { LoginService } from '../../services/LoginService.js';
 import axios from "axios";
-import {LogInterceptor} from "./interceptors/logInterceptor";
+import {LogInterceptor} from "./interceptors/LogInterceptor";
+import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";
 
 export class BaseClient {
     constructor(baseUrl = config.baseUrl) {
@@ -17,6 +18,7 @@ export class BaseClient {
             validateStatus: () => true,
         });
         new LogInterceptor(this.client);
+        new AllureAxiosInterceptor(this.client);
     }
 
     async initAuthIfNeeded() {

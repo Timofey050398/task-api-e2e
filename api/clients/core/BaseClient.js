@@ -1,6 +1,6 @@
 import { config } from '../../config.js';
-import { AuthCache } from '../../utils/AuthCache.js';
-import { LoginService } from '../../services/LoginService.js';
+import { AuthCache } from './AuthCache.js';
+import { LoginService } from '../../../services/api/LoginService.js';
 import axios from "axios";
 import {LogInterceptor} from "./interceptors/LogInterceptor";
 import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";

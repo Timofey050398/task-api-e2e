@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import { LoginClient } from '../clients/LoginClient.js';
-import { BaseClient } from '../clients/core/BaseClient.js';
-import {AuthCache} from "../utils/AuthCache";
-import {getTelegram2FACode} from "../../telegram/getTelegramCode";
+import { LoginClient } from '../../api/clients/LoginClient.js';
+import { BaseClient } from '../../api/clients/core/BaseClient.js';
+import {AuthCache} from "../../api/clients/core/AuthCache";
+import {getTelegram2FACode} from "../telegram/getTelegramCode";
 import {step} from "allure-js-commons";
 
 export class LoginService {

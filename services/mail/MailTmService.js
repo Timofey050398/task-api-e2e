@@ -1,10 +1,11 @@
 import {MailTmClient} from "../../api/clients/mail/MailTmClient";
+import {attachment} from "allure-js-commons";
+import {decodeMessage} from "../../utils/messageDecoder";
 
 export class MailTmService {
-    constructor(email = null, password = null) {
+    constructor(email = process.env.MAILTM_EMAIL, password = process.env.TEST_USER_PASS) {
         this.email = email;
         this.password = password;
-        this.token = null;
         this.client = new MailTmClient();
     }
 
@@ -12,12 +13,11 @@ export class MailTmService {
      * Инициализация: если email не задан — генерирует новый ящик
      */
     async init() {
-        if (!this.email || !this.password) {
+        if (!this.email) {
             const { data: domainData } = await this.client.getDomains();
             const domain = domainData["hydra:member"][0].domain;
 
-            this.email = this.email ?? `user_${Date.now()}@${domain}`;
-            this.password = this.password ?? Math.random().toString(36).slice(-10) + "!1a";
+            this.email = `user_${Date.now()}@${domain}`;
 
             await this.client.createAccount(this.email, this.password);
         }
@@ -28,7 +28,7 @@ export class MailTmService {
         this.client.setBearerToken(data.token);
 
         console.log(`📧 Mailbox ready: ${this.email}`);
-        return { email: this.email, password: this.password, token: this.token };
+        return { email: this.email, password: this.password };
     }
 
     /**
@@ -56,6 +56,67 @@ export class MailTmService {
         return data;
     }
 
+    async getLastCode(timeoutMs = 30000, interval = 2000) {
+        const message = await this.waitForLastMessage(timeoutMs,interval);
+        if (!message) return null;
+
+        const { data } = await this.client.downloadMessage(message.id);
+
+        const { html, code } = decodeMessage(data);
+
+        if (code) {
+            console.log(`[MailTm] ✅ code found: ${code}`);
+        } else {
+            console.log("[MailTm] ⚠️ No code found in the last message.");
+        }
+
+        const attachmentContent = {
+            found: !!code,
+            code: code || null,
+            html: html,
+        };
+
+        await attachment(
+            "📩 MailTm code",
+            JSON.stringify(attachmentContent, null, 2),
+            "application/json"
+        );
+
+        return code;
+    }
+
+    async waitForLastMessage(timeoutMs = 30000, interval = 2000) {
+        const start = Date.now();
+
+        while (Date.now() - start < timeoutMs) {
+            const messages = await this.getMessages(1);
+            if (messages.length > 0) {
+                const msg = messages[0];
+                const received = new Date(msg.updatedAt).getTime();
+                if (received > start) {
+                    console.log(`📩 New message detected (${msg.id}) at ${msg.createdAt}`);
+                    return msg;
+                }
+            }
+            await new Promise(r => setTimeout(r, interval));
+        }
+
+        console.log("⏰ Timeout waiting for message");
+        return null;
+    }
+
+
+    async clearLastMessage() {
+        const messages = await this.getMessages(1);
+        if (messages.length === 0) {
+            console.log("📭 No messages yet");
+            return null;
+        }
+
+        const msgId = messages[0].id;
+        await this.client.deleteMessage(msgId);
+    }
+
     /**
      * Удалить все письма (опционально)
      */
@@ -65,5 +126,19 @@ export class MailTmService {
             await this.client.deleteMessage(msg.id);
         }
         console.log("🧹 Inbox cleared");
+    }
+
+    async getLastCodeWithClear() {
+        let code;
+        try {
+            code = await this.getLastCode();
+        } finally {
+            await this.clearInbox();
+        }
+
+        if (!code) {
+            throw new Error('mail code does not found');
+        }
+        return code;
     }
 }

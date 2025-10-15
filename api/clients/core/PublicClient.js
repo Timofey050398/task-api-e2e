@@ -3,6 +3,9 @@ import axios from "axios";
 import {LogInterceptor} from "./interceptors/LogInterceptor";
 import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";
 
+/**
+ * Не авторизованный базовый axios клиент
+ */
 export class PublicClient {
     constructor(processErrors = true, baseUrl = config.baseUrl) {
         this.client = axios.create({

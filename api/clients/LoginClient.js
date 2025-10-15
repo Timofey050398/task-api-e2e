@@ -2,6 +2,8 @@ import {PublicClient} from "./core/PublicClient";
 
 export const INVALID_CONFIRMATION_CODE = 'INVALID_CONFIRMATION_CODE';
 export const INVALID_LOGIN_OR_PASSWORD = 'INVALID_LOGIN_OR_PASSWORD';
+export const LOGIN_OR_MAIL_NOT_EXIST = 'LOGIN_OR_MAIL_NOT_EXIST';
+export const INVALID_LOGIN_OR_CODE = 'INVALID_LOGIN_OR_CODE';
 
 export class LoginClient extends PublicClient {
     constructor(processErrors = true) {
@@ -47,6 +49,36 @@ export class LoginClient extends PublicClient {
         return await this.post(
             '/auth/client/sign-in/finalize',
             { PIN: pin },
+            this.#withSessionHeaders(options),
+        );
+    }
+
+    async resetPassword(login, options = {}) {
+        return await this.post(
+            '/email/reset_password',
+            {login : login},
+            this.#withSessionHeaders(options),
+            );
+    }
+
+    async getResetPasswordToken(login, code, options = {}) {
+        return await this.post(
+            '/email/get_reset_password_token',
+            {
+                login : login,
+                code : code
+            },
+            this.#withSessionHeaders(options),
+        );
+    }
+
+    async changePassword(password, uuid, options = {}) {
+        return await this.post(
+            '/auth/client/change_password',
+            {
+                password : password,
+                uuid : uuid
+            },
             this.#withSessionHeaders(options),
         );
     }

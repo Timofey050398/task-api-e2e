@@ -1,8 +1,8 @@
-import { LoginService } from "../services/api/LoginService";
+import { LoginService } from "../../services/api/LoginService";
 import { expect, test } from "@playwright/test";
-import { LoginClient, INVALID_CONFIRMATION_CODE, INVALID_LOGIN_OR_PASSWORD } from "../api/clients/LoginClient";
-import {generateEmail, generatePassword} from "../utils/randomGenerator";
-import {assertCode, assertEquals} from "../utils/allureUtils";
+import { LoginClient, INVALID_CONFIRMATION_CODE, INVALID_LOGIN_OR_PASSWORD } from "../../api/clients/LoginClient";
+import {generateEmail, generatePassword} from "../../utils/randomGenerator";
+import {assertCode, assertEquals} from "../../utils/allureUtils";
 import {step} from "allure-js-commons";
 
 test.describe('login flow', () => {

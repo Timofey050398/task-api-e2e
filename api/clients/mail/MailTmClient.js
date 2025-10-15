@@ -1,9 +1,11 @@
 import {PublicClient} from "../core/PublicClient";
+import {RetryInterceptor} from "../core/interceptors/RetryInterceptor";
 
 
 export class MailTmClient extends PublicClient{
     constructor() {
         super(false,"https://api.mail.tm");
+        new RetryInterceptor(this.client, { maxRetries: 3, baseDelay: 1000 })
     }
 
     async getDomains() {
@@ -38,5 +40,9 @@ export class MailTmClient extends PublicClient{
 
     async deleteMessage(id) {
         return await this.delete(`/messages/${id}`);
+    }
+
+    async downloadMessage(id) {
+        return await this.get(`/messages/${id}/download`);
     }
 }

@@ -4,6 +4,7 @@ import { BaseClient } from '../../api/clients/core/BaseClient.js';
 import {AuthCache} from "../../api/clients/core/AuthCache";
 import {getTelegram2FACode} from "../telegram/getTelegramCode";
 import {step} from "allure-js-commons";
+import {MailTmService} from "../mail/MailTmService";
 
 export class LoginService {
     /**
@@ -13,6 +14,7 @@ export class LoginService {
     constructor({pin = process.env.TEST_PIN } = {}) {
         this.loginClient = new LoginClient(false);
         this.baseClient = new BaseClient();
+        this.mailService = new MailTmService();
         this.pin = pin;
     }
 
@@ -20,6 +22,30 @@ export class LoginService {
         return await step(`🔐 login by user ${process.env.TEST_USER_LOGIN}`, async () => {
             return await this.#login();
         });
+    }
+
+    async changePassword() {
+        return await step(`🔐 change password to user ${process.env.TEST_USER_LOGIN}`, async () => {
+            return await this.#changePassword();
+        });
+    }
+
+    async #changePassword(newPassword = process.env.TEST_USER_PASS) {
+        const login = process.env.TEST_USER_LOGIN;
+        await this.mailService.init();
+
+        await this.loginClient.resetPassword(login);
+        const code = await this.mailService.getLastCodeWithClear();
+
+        const getTokenResponse = await this.loginClient.getResetPasswordToken(login,code);
+
+        const token = getTokenResponse.data.token;
+
+        if (!token) {
+            throw new Error('token not found');
+        }
+
+        await this.loginClient.changePassword(newPassword, token);
     }
 
     async #login() {

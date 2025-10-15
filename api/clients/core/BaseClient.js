@@ -5,6 +5,9 @@ import axios from "axios";
 import {LogInterceptor} from "./interceptors/LogInterceptor";
 import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";
 
+/**
+ * aвторизованный базовый axios клиент
+ */
 export class BaseClient {
     constructor(baseUrl = config.baseUrl) {
         this.client = axios.create({

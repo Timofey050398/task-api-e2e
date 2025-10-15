@@ -1,4 +1,5 @@
 // telegram/TelegramSessionGenerator.cjs
+const { TelegramClient } = require('telegram');          // ✅ добавляем это
 const { StringSession } = require('telegram/sessions');
 require('dotenv').config();
 const input = require('input');
@@ -8,20 +9,19 @@ const apiHash = process.env.TG_API_HASH;
 const phoneNumber = process.env.TG_PHONE_NUMBER;
 
 /**
- * Скрипт для получения ключа TG_SESSION,
- * Срока жизни у ключа судя по документам нет.
- * Ключ получается один раз на одно окружение и один аккаунт,
- * С разных IP одним ключом пользоваться не выйдет
- * телеграм оказался очень чувствительным в политике безопасности
+ * Скрипт для получения ключа TG_SESSION.
+ * Ключ постоянный, но уникален для аккаунта и IP.
  */
 class TelegramSessionGenerator {
     constructor() {
-        this.client = null;
         this.session = new StringSession('');
+        this.client = null;
     }
 
     async connect() {
-        this.client = new TelegramSessionGenerator(this.session, apiId, apiHash, { connectionRetries: 5 });
+        this.client = new TelegramClient(this.session, apiId, apiHash, {
+            connectionRetries: 5
+        });
         await this.client.connect();
         console.log('[Telegram] Connected to Telegram servers.');
     }

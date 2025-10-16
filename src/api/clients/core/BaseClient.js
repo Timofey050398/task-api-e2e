@@ -1,9 +1,9 @@
 import { config } from '../../config.js';
 import { AuthCache } from './AuthCache.js';
-import { LoginService } from '../../../services/api/LoginService.js';
 import axios from "axios";
 import {LogInterceptor} from "./interceptors/LogInterceptor";
 import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";
+import {loginServiceProvider} from "../../../providers/LoginServiceProvider";
 
 /**
  * aвторизованный базовый axios клиент
@@ -27,7 +27,7 @@ export class BaseClient {
     async initAuthIfNeeded() {
         if (!AuthCache.cookies || !AuthCache.sseToken) {
             console.log('[BaseClient] Auth missing, performing login...');
-            const loginService = new LoginService();
+            const loginService = await loginServiceProvider.get();
             const { cookies, sseToken } = await loginService.login();
             AuthCache.set({ cookies, sseToken });
         }

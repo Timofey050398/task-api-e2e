@@ -1,5 +1,6 @@
 import { decode } from "iconv-lite";
 import { decode as decodeQuotedPrintable } from "quoted-printable";
+import {Buffer} from "buffer";
 
 export function decodeMessage(data) {
     const raw = typeof data === "string" ? data : JSON.stringify(data);

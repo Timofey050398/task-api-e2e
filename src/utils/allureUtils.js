@@ -1,4 +1,4 @@
-import { step, attachment } from "allure-js-commons";
+import { step } from "allure-js-commons";
 import { expect } from "@playwright/test";
 
 /**
@@ -10,16 +10,6 @@ export async function assertEquals(actual, expected, subject = '', message) {
         try {
             expect(actual).toBe(expected);
         } catch (err) {
-            const diffAttachment = {
-                expected,
-                actual,
-                message: err.message,
-            };
-            await attachment(
-                '❌ Assertion details',
-                JSON.stringify(diffAttachment, null, 2),
-                'application/json'
-            );
             throw err;
         }
     });

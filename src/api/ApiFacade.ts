@@ -1,5 +1,5 @@
-import {LoginClient} from "../api/clients/LoginClient";
-import {AccountClient} from "../api/clients/AccountClient";
+import {LoginClient} from "./clients/LoginClient";
+import {AccountClient} from "./clients/AccountClient";
 
 export class ApiFacade {
     readonly login: LoginClient;

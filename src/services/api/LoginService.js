@@ -1,4 +1,4 @@
-/** @typedef {import('../../model/User.js').User} User */
+/** @typedef {import('../../model/User.ts').User} User */
 import 'dotenv/config';
 import { LoginClient } from '../../api/clients/LoginClient.js';
 import { BaseClient } from '../../api/clients/core/BaseClient.js';

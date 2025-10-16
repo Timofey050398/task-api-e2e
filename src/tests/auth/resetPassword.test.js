@@ -1,5 +1,4 @@
-import { LoginService } from "../../services/api/LoginService";
-import { test } from "@playwright/test";
+import { test } from "../../fixtures/userPool";
 import {
     LoginClient,
     INVALID_LOGIN_OR_PASSWORD,
@@ -10,20 +9,16 @@ import {generateEmail, generatePassword} from "../../utils/randomGenerator";
 import {assertCode, assertEquals} from "../../utils/allureUtils";
 import {step} from "allure-js-commons";
 import {MailTmService} from "../../services/mail/MailTmService";
-import {USER_ONE} from "../../constants/Users";
-
-const user = USER_ONE;
 
 test.describe('change password flow', () => {
     test.setTimeout(60000);
-    test('should successfully change password', async () => {
-        await new LoginService(user).changePassword();
+    test('should successfully change password', async ({ loginService  }) => {
+        await loginService.changePassword();
     });
-    test('should get error when reset email not valid', async () => {
-        const client = new LoginClient();
+    test('should get error when reset email not valid', async ({api}) => {
         const login = generatePassword();
 
-        const response = await client.resetPassword(login);
+        const response = await api.login.resetPassword(login);
 
         await step('assert reset password response', async () => {
             await assertCode(response.status, 400);
@@ -41,7 +36,7 @@ test.describe('change password flow', () => {
             await assertEquals(response.data.message, LOGIN_OR_MAIL_NOT_EXIST, 'error message ');
         });
     });
-    test('should get error when code wrong', async () => {
+    test('should get error when code wrong', async ({ user }) => {
         const client = new LoginClient();
         const login = user.login;
         const resetPasswordResponse = await client.resetPassword(login);
@@ -54,7 +49,7 @@ test.describe('change password flow', () => {
         });
     });
 
-    test('should get error when code old', async () => {
+    test('should get error when code old', async ({ user }) => {
         const loginClient = new LoginClient();
         const mailService = new MailTmService(user);
         const login = user.login;
@@ -73,25 +68,23 @@ test.describe('change password flow', () => {
         });
     });
 
-    test('should get error when password incorrect', async () => {
-        const loginClient = new LoginClient();
-        const mailService = new MailTmService(user);
+    test('should get error when password incorrect', async ({ user , loginService , api, mailService }) => {
         const login = user.login;
         await mailService.init();
 
-        let resetPasswordResponse = await loginClient.resetPassword(login);
+        let resetPasswordResponse = await api.login.resetPassword(login);
         await assertCode(resetPasswordResponse.status, 200);
 
         const code = await mailService.getLastCodeWithClear();
-        const resetPasswordTokenResponse = await loginClient.getResetPasswordToken(login,code);
+        const resetPasswordTokenResponse = await api.login.getResetPasswordToken(login,code);
         await assertCode(resetPasswordTokenResponse.status, 200);
         const token = resetPasswordTokenResponse.data.token;
 
-        const response = await loginClient.changePassword("@@$#%#%", token);
+        const response = await api.login.changePassword("@@$#%#%", token);
 
         try {
             if (response.status === 200) {
-                await new LoginService(user).changePassword();
+                await loginService.changePassword();
             }
         } finally {
             await step('assert get reset password token response', async () => {

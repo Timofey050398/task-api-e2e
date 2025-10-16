@@ -7,7 +7,7 @@ export class TonTransactionService extends BlockchainTransactionService {
         super({
             ...options,
             network: 'ton',
-            recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? 1 * ONE_MINUTE,
+            recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? ONE_MINUTE,
             pollIntervalMs: options.pollIntervalMs ?? 5 * 1000,
         });
     }

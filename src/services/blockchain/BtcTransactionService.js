@@ -6,7 +6,7 @@ export class BtcTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
         super({
             ...options,
-            network: 'btc',
+            network: 'BTC',
             recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? 60 * ONE_MINUTE,
             pollIntervalMs: options.pollIntervalMs ?? 30 * 1000,
         });

@@ -2,7 +2,7 @@ import { BlockchainTransactionService } from './BlockchainTransactionService.js'
 
 const ONE_MINUTE = 60 * 1000;
 
-export class TryTransactionService extends BlockchainTransactionService {
+export class TrxTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
         super({
             ...options,

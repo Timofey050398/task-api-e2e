@@ -1,5 +1,4 @@
-import { test } from "../../fixtures/userPool";
-import { expect } from "@playwright/test";
+import { expect, test } from "../../fixtures/userPool";
 import {INVALID_CONFIRMATION_CODE, INVALID_LOGIN_OR_PASSWORD, LoginClient} from "../../api/clients/LoginClient";
 import {generateEmail, generatePassword} from "../../utils/randomGenerator";
 import {assertCode, assertEquals} from "../../utils/allureUtils";

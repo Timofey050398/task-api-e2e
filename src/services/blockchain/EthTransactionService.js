@@ -6,7 +6,7 @@ export class EthTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
         super({
             ...options,
-            network: 'eth',
+            network: 'ETH',
             recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? 3 * ONE_MINUTE,
             pollIntervalMs: options.pollIntervalMs ?? 15 * 1000,
         });

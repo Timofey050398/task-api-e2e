@@ -18,7 +18,6 @@ export class LoginService {
 
     mailService: any;
 
-
     pin: string;
 
     login(): Promise<LoginResult>;

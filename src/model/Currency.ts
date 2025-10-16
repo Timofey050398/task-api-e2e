@@ -13,9 +13,9 @@ export const Currencies = {
     BTC: { id: 2100, type: CurrencyType.CRYPTO, network: Network.BTC },
     ETH: { id: 2110, type: CurrencyType.CRYPTO, network: Network.ETH },
     TRX: { id: 2120, type: CurrencyType.CRYPTO, network: Network.TRON },
-    USDT_ERC20: { id: 2000, type: CurrencyType.CRYPTO, network: Network.ETH, tokenContract: process.env.USDT_ERC20_CONTRACT },
-    USDT_TRC20: { id: 2001, type: CurrencyType.CRYPTO, network: Network.TRON, tokenContract: process.env.USDT_TRC20_CONTRACT },
-    USDC_ERC20: { id: 2002, type: CurrencyType.CRYPTO, network: Network.ETH, tokenContract: process.env.USDC_ERC20_CONTRACT },
+    USDT_ERC20: { id: 2000, type: CurrencyType.CRYPTO, network: Network.ETH, tokenContract: process.env.USDT_ERC20_CONTRACT, decimal: 6 },
+    USDT_TRC20: { id: 2001, type: CurrencyType.CRYPTO, network: Network.TRON, tokenContract: process.env.USDT_TRC20_CONTRACT, decimal: 6 },
+    USDC_ERC20: { id: 2002, type: CurrencyType.CRYPTO, network: Network.ETH, tokenContract: process.env.USDC_ERC20_CONTRACT, decimal: 6 },
     TON: { id: 2130, type: CurrencyType.CRYPTO, network: Network.TON },
 } as const;
 

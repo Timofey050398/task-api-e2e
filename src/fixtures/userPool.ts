@@ -71,8 +71,8 @@ const test = base.extend<Fixtures, WorkerFixtures>({
         await use(mailService);
     },
 
-    api: async ({loginService}, use) => {
-        const api = new ApiFacade(loginService);
+    api: async ({user}, use) => {
+        const api = new ApiFacade(user);
         await use(api);
     },
 });

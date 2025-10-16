@@ -22,12 +22,14 @@
     "bitcoinjs-lib": "^6.1.5",
     "colors": "^1.4.0",
     "dotenv": "^17.2.3",
+    "ecpair": "^3.0.0",
     "ethers": "^6.13.1",
     "iconv-lite": "^0.7.0",
     "input": "^1.0.1",
     "quoted-printable": "^1.0.1",
     "telegram": "^2.26.22",
-    "tonweb": "^0.0.67",
+    "tiny-secp256k1": "^2.2.4",
+    "tonweb": "0.0.66",
     "tronweb": "^6.0.0"
   }
 }

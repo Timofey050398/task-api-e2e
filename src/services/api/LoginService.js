@@ -3,21 +3,21 @@ import 'dotenv/config';
 import { LoginClient } from '../../api/clients/LoginClient.js';
 import { BaseClient } from '../../api/clients/core/BaseClient.js';
 import {AuthCache} from "../../api/clients/core/AuthCache";
-import {getTelegram2FACode} from "../telegram/getTelegramCode";
+import {TelegramService} from "../telegram/TelegramService";
 import {step} from "allure-js-commons";
 import {MailTmService} from "../mail/MailTmService";
-import {USER_ONE} from "../../constants/Users";
 
 export class LoginService {
 
     /**
      * @param {User} [user=USER_ONE]
      */
-    constructor(user = USER_ONE) {
+    constructor(user) {
         this.user = user;
         this.loginClient = new LoginClient(false);
         this.baseClient = new BaseClient();
         this.mailService = new MailTmService(user);
+        this.tgService = new TelegramService(user);
         this.pin = this.user.pin;
     }
 
@@ -63,7 +63,7 @@ export class LoginService {
         await this.loginClient.signInRequest(login, password);
 
         // получить код 2FA
-        let code = await getTelegram2FACode(this.user);
+        let code = await this.tgService.getTelegram2FACode(this.user);
 
         if (!code) {
             throw new Error('2FA code not provided: either supply getCodeFn or set TEST_2FA_CODE in env');

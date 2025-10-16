@@ -3,12 +3,13 @@ import { AuthCache } from './AuthCache.js';
 import axios from "axios";
 import {LogInterceptor} from "./interceptors/LogInterceptor";
 import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";
+import {LoginService} from "../../../services/api/LoginService";
 
 /**
  * aвторизованный базовый axios клиент
  */
 export class BaseClient {
-    constructor(loginService, baseUrl = config.baseUrl) {
+    constructor(user, baseUrl = config.baseUrl) {
         this.client = axios.create({
             baseURL: baseUrl,
             withCredentials: true,
@@ -19,7 +20,7 @@ export class BaseClient {
             },
             validateStatus: () => true,
         });
-        this.loginService = loginService;
+        this.loginService = new LoginService(user);
         new LogInterceptor(this.client);
         new AllureAxiosInterceptor(this.client);
     }

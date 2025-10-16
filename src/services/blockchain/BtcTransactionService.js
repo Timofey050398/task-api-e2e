@@ -1,96 +1,124 @@
-import { Psbt, networks } from 'bitcoinjs-lib';
+import * as bitcoin from "bitcoinjs-lib";
+import { ECPairFactory } from "ecpair";
+import ecc from "tiny-secp256k1";
+import { BlockchainTransactionService } from "./BlockchainTransactionService.js";
+import {Currencies} from "../../model/Currency";
 
-import { BlockchainTransactionService } from './BlockchainTransactionService.js';
-
+const ECPair = ECPairFactory(ecc);
 const ONE_MINUTE = 60 * 1000;
 
 export class BtcTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
         super({
             ...options,
-            network: 'BTC',
-            recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? 60 * ONE_MINUTE,
+            network: "BTC",
+            recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? 30 * ONE_MINUTE,
             pollIntervalMs: options.pollIntervalMs ?? 30 * 1000,
         });
 
-        this.broadcastProvider = options.broadcastProvider ?? null;
-        this.bitcoinNetwork = resolveBitcoinNetwork(options.bitcoinNetwork);
+        this.bitcoinNetwork = resolveBitcoinNetwork(options.bitcoinNetwork ?? "mainnet");
+        this.broadcastProvider = options.broadcastProvider ?? broadcastViaBlockstream;
+        this.currency = Currencies.BTC;
     }
 
-    setBroadcastProvider(broadcastProvider) {
-        if (typeof broadcastProvider !== 'function') {
-            throw new Error('broadcastProvider must be a function');
+    async sendTransaction(recipientAddress, sendValue) {
+        const senderAddress = process.env.BTC_ADDRESS;
+        const privateKeyWIF = process.env.BTC_PRIVATE_KEY;
+
+        if (!senderAddress || !privateKeyWIF) {
+            throw new Error("BTC_ADDRESS or BTC_PRIVATE_KEY missing from .env");
         }
 
-        this.broadcastProvider = broadcastProvider;
-    }
+        const keyPair = ECPair.fromWIF(privateKeyWIF, this.bitcoinNetwork);
 
-    async sendNativeTransaction({
-        inputs,
-        outputs,
-        signers = [],
-        broadcastProvider,
-        finalize = true,
-    } = {}) {
-        if (!Array.isArray(inputs) || inputs.length === 0) {
-            throw new Error('inputs must be a non-empty array');
+        const utxos = await fetchUtxos(senderAddress);
+        if (!utxos.length) throw new Error("No UTXO found for sender address");
+
+        const utxo = utxos[0];
+        const utxoValue = utxo.value;
+
+        const input = {
+            hash: utxo.txid,
+            index: utxo.vout,
+            witnessUtxo: {
+                script: bitcoin.address.toOutputScript(senderAddress, this.bitcoinNetwork),
+                value: utxoValue,
+            },
+        };
+
+        const estimatedVBytes = 180 + 34 * 2 + 10;
+        const feeRate = await fetchFeeRate();
+        const fee = Math.ceil(estimatedVBytes * feeRate);
+
+        if (utxoValue < sendValue + fee) {
+            throw new Error(`Insufficient balance. Available: ${utxoValue}, need: ${sendValue + fee}`);
         }
 
-        if (!Array.isArray(outputs) || outputs.length === 0) {
-            throw new Error('outputs must be a non-empty array');
+        const changeValue = utxoValue - sendValue - fee;
+
+        const outputs = [
+            { address: recipientAddress, value: sendValue },
+        ];
+        if (changeValue > 546) { // если сдача не пыль
+            outputs.push({ address: senderAddress, value: changeValue });
         }
 
-        const network = this.bitcoinNetwork;
-        const psbt = new Psbt({ network });
+        const psbt = new bitcoin.Psbt({ network: this.bitcoinNetwork });
+        psbt.addInput(input);
+        outputs.forEach(o => psbt.addOutput(o));
+        psbt.signAllInputs(keyPair);
+        psbt.finalizeAllInputs();
 
-        inputs.forEach((input) => {
-            psbt.addInput(input);
-        });
+        const tx = psbt.extractTransaction();
+        const rawHex = tx.toHex();
+        const txid = tx.getId();
 
-        outputs.forEach((output) => {
-            psbt.addOutput(output);
-        });
-
-        signers.forEach((signer, index) => {
-            psbt.signInput(index, signer);
-        });
-
-        if (finalize) {
-            psbt.validateSignaturesOfAllInputs();
-            psbt.finalizeAllInputs();
-        }
-
-        const transaction = finalize ? psbt.extractTransaction() : null;
-        const rawTransaction = transaction ? transaction.toHex() : psbt.toBase64();
-
-        const broadcaster = broadcastProvider ?? this.broadcastProvider;
-        if (broadcaster) {
-            const broadcastResult = await broadcaster(rawTransaction, { network: this.network, finalize });
-            return {
-                rawTransaction,
-                broadcastResult,
-                finalized: Boolean(finalize),
-            };
-        }
+        const res = await this.broadcastProvider(rawHex);
 
         return {
-            rawTransaction,
-            finalized: Boolean(finalize),
+            txid: res.txid ?? txid,
+            sentAmount: sendValue,
+            fee,
         };
     }
 }
 
-function resolveBitcoinNetwork(networkName = 'mainnet') {
-    switch (networkName) {
-        case 'testnet':
-            return networks.testnet;
-        case 'regtest':
-            return networks.regtest ?? networks.testnet;
-        case 'signet':
-            return networks.testnet;
-        case 'mainnet':
-        case 'bitcoin':
-        default:
-            return networks.bitcoin;
+/** Получение UTXO через Blockstream API */
+async function fetchUtxos(address) {
+    const url = `https://blockstream.info/api/address/${address}/utxo`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`UTXO fetch failed: ${res.status}`);
+    return await res.json();
+}
+
+/** Получение средней комиссии */
+async function fetchFeeRate() {
+    try {
+        const res = await fetch("https://mempool.space/api/v1/fees/recommended");
+        const data = await res.json();
+        return data.fastestFee || 15; // сатоши за байт
+    } catch {
+        return 10;
+    }
+}
+
+/** Отправка транзакции в сеть */
+async function broadcastViaBlockstream(rawTx) {
+    const res = await fetch("https://blockstream.info/api/tx", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: rawTx,
+    });
+    if (!res.ok) throw new Error(`Broadcast failed: ${await res.text()}`);
+    const txid = await res.text();
+    console.log(`✅ Broadcasted: ${txid}`);
+    return { txid };
+}
+
+function resolveBitcoinNetwork(name = "mainnet") {
+    switch (name) {
+        case "testnet": return bitcoin.networks.testnet;
+        case "regtest": return bitcoin.networks.regtest ?? bitcoin.networks.testnet;
+        default: return bitcoin.networks.bitcoin;
     }
 }

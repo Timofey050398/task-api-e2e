@@ -2,8 +2,8 @@ import {BaseClient} from "./core/BaseClient";
 
 
 export class AccountClient extends BaseClient {
-    constructor(loginService) {
-        super(loginService);
+    constructor(user) {
+        super(user);
     }
 
     async createCryptoWallet(currencyId, groupId, name){

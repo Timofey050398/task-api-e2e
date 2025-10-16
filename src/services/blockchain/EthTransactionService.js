@@ -1,12 +1,9 @@
-import { Contract, JsonRpcProvider, Wallet, parseUnits } from 'ethers';
-
+import { Contract, JsonRpcProvider, Wallet, parseUnits, formatUnits } from 'ethers';
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
+import {Network} from "../../model/Network";
 
 const ONE_MINUTE = 60 * 1000;
-
-const DEFAULT_ERC20_ABI = [
-    'function transfer(address to, uint256 amount) returns (bool)',
-];
+const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
 
 export class EthTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
@@ -17,168 +14,84 @@ export class EthTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 15 * 1000,
         });
 
-        this.provider = resolveProvider(options.provider);
-        this.signer = resolveSigner(options.signer, this.provider);
+        this.provider = resolveProvider(process.env.ETH_RPC_URL);
+        this.signer = resolveSigner(process.env.ETH_PRIVATE_KEY, this.provider);
         this.tokenAbi = options.tokenAbi ?? DEFAULT_ERC20_ABI;
     }
 
-    setProvider(provider) {
-        this.provider = resolveProvider(provider);
-    }
+    /**
+     * Отправка ETH
+     * @param {string} to - получатель
+     * @param {string|number|bigint} amount - сумма (в ETH или в wei)
+     * @returns {Promise<{txHash: string, feeEth: string}>}
+     */
+    async sendNativeTransaction(to, amount) {
+        if (!this.signer) throw new Error('Signer not set');
+        if (!to) throw new Error('Recipient address required');
 
-    setSigner(signer) {
-        this.signer = resolveSigner(signer, this.provider);
-    }
+        const value = parseUnits(amount.toString(), 'ether');
 
-    setTokenAbi(tokenAbi) {
-        if (!Array.isArray(tokenAbi)) {
-            throw new Error('tokenAbi must be an array describing the contract interface');
-        }
+        const { gasPrice } = await this.provider.getFeeData();
+        if (!gasPrice) throw new Error('Gas price unavailable from provider');
+        const estimate = await this.signer.estimateGas({ to, value });
+        const fee = gasPrice * estimate;
 
-        this.tokenAbi = tokenAbi;
-    }
+        const tx = await this.signer.sendTransaction({ to, value, gasPrice, gasLimit: estimate });
 
-    async sendNativeTransaction({
-        to,
-        amount,
-        unit = 'wei',
-        gasLimit,
-        gasPrice,
-        data,
-        nonce,
-        signer,
-    } = {}) {
-        const resolvedSigner = resolveSigner(signer, this.provider) ?? this.signer;
-        if (!resolvedSigner) {
-            throw new Error('A signer must be provided to send native transactions');
-        }
-
-        if (!to) {
-            throw new Error('Recipient address is required');
-        }
-
-        if (amount === undefined || amount === null) {
-            throw new Error('amount is required');
-        }
-
-        const value = normalizeAmount(amount, unit);
-
-        const transactionRequest = {
-            to,
-            value,
-            data,
-            gasLimit,
-            gasPrice,
-            nonce,
+        return {
+            txHash: tx.hash,
+            feeEth: formatUnits(fee, 'ether'),
         };
-
-        return resolvedSigner.sendTransaction(transactionRequest);
     }
 
-    async sendTokenTransaction({
-        tokenAddress,
-        to,
-        amount,
-        decimals = 18,
-        gasLimit,
-        gasPrice,
-        nonce,
-        signer,
-        tokenAbi,
-    } = {}) {
-        const resolvedSigner = resolveSigner(signer, this.provider) ?? this.signer;
-        if (!resolvedSigner) {
-            throw new Error('A signer must be provided to send token transactions');
+    /**
+     * @param {string} to
+     * @param {string|number} amount
+     * @param {typeof Currencies[keyof typeof Currencies]} currency
+     * @returns {Promise<{txHash: string, feeEth: string}>}
+     */
+    async sendTokenTransaction(to, amount, currency) {
+        if (!this.signer) throw new Error('Signer not set');
+        if (!to) throw new Error('Recipient address required');
+        if (!currency) throw new Error('Currency required');
+
+        if (currency.network !== Network.ETH) {
+            throw new Error('Only ETH network supported');
         }
 
-        if (!tokenAddress) {
-            throw new Error('tokenAddress is required');
+        if (!('tokenContract' in currency) || !('decimal' in currency)) {
+            throw new Error('Currency must include tokenContract and decimal');
         }
 
-        if (!to) {
-            throw new Error('Recipient address is required');
-        }
+        const tokenAddress = currency.tokenContract;
+        const decimals = currency.decimal;
+        const contract = new Contract(tokenAddress, this.tokenAbi, this.signer);
+        const value = parseUnits(amount.toString(), decimals);
 
-        if (amount === undefined || amount === null) {
-            throw new Error('amount is required');
-        }
+        const { gasPrice } = await this.provider.getFeeData();
+        if (!gasPrice) throw new Error('Gas price unavailable from provider');
+        const estimate = await contract.estimateGas.transfer(to, value);
+        const fee = gasPrice * estimate;
 
-        const abi = tokenAbi ?? this.tokenAbi;
-        if (!Array.isArray(abi)) {
-            throw new Error('tokenAbi must be an array describing the contract interface');
-        }
+        const tx = await contract.transfer(to, value, { gasPrice, gasLimit: estimate });
 
-        const contract = new Contract(tokenAddress, abi, resolvedSigner);
-        const value = normalizeAmount(amount, decimals);
-
-        return contract.transfer(to, value, {
-            gasLimit,
-            gasPrice,
-            nonce,
-        });
+        return {
+            txHash: tx.hash,
+            feeEth: formatUnits(fee, 'ether'),
+        };
     }
 }
 
+/** --- helpers --- */
+
 function resolveProvider(provider) {
-    if (!provider) {
-        return null;
-    }
-
-    if (typeof provider === 'string') {
-        return new JsonRpcProvider(provider);
-    }
-
+    if (!provider) return null;
+    if (typeof provider === 'string') return new JsonRpcProvider(provider);
     return provider;
 }
 
 function resolveSigner(signer, provider) {
-    if (!signer) {
-        return null;
-    }
-
-    if (typeof signer === 'string') {
-        if (!provider) {
-            throw new Error('A provider must be supplied when signer is a private key');
-        }
-
-        return new Wallet(signer, provider);
-    }
-
+    if (!signer) return null;
+    if (typeof signer === 'string') return new Wallet(signer, provider);
     return signer;
-}
-
-function normalizeAmount(amount, unit) {
-    if (typeof amount === 'bigint') {
-        return amount;
-    }
-
-    if (typeof amount === 'number') {
-        if (!Number.isFinite(amount)) {
-            throw new Error('amount must be a finite number');
-        }
-
-        return parseAmountFromString(amount.toString(), unit);
-    }
-
-    if (typeof amount === 'string') {
-        return parseAmountFromString(amount, unit);
-    }
-
-    throw new Error('amount must be a bigint, number, or string');
-}
-
-function parseAmountFromString(value, unit) {
-    if (unit === 'wei') {
-        return BigInt(value);
-    }
-
-    if (typeof unit === 'number') {
-        return parseUnits(value, unit);
-    }
-
-    if (typeof unit === 'string' && /^\d+$/.test(unit)) {
-        return parseUnits(value, Number(unit));
-    }
-
-    return parseUnits(value, unit);
 }

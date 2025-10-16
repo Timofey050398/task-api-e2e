@@ -74,7 +74,7 @@ test.describe('change password flow', () => {
         await assertCode(resetPasswordTokenResponse.status, 200);
         const token = resetPasswordTokenResponse.data.token;
 
-        const response = await api.login.changePassword("@@$#%#%", token);
+        const response = await api.login.changePassword("", token);
 
         try {
             if (response.status === 200) {

@@ -17,7 +17,7 @@ export class LoginService {
         this.user = user;
         this.loginClient = new LoginClient(false);
         this.baseClient = new BaseClient();
-        this.mailService = new MailTmService();
+        this.mailService = new MailTmService(user);
         this.pin = this.user.pin;
     }
 

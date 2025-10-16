@@ -140,11 +140,36 @@ export function generateCredentials(opts = {}) {
   return { email, password };
 }
 
+/**
+ * Генерирует человекопонятное рандомное имя.
+ * Пример: 'wallet_silent-fox-83f'
+ * @param {string} [prefix='wallet'] - префикс имени (например, wallet, user, test)
+ * @param {object} [opts]
+ * @param {number} [opts.maxRandom=9999] - диапазон случайного числа (для уникальности)
+ * @returns {string}
+ */
+export function generateRandomName(prefix = 'wallet', opts = {}) {
+    const adjectives = [
+        'silent', 'brave', 'clever', 'swift', 'calm', 'fuzzy', 'shiny', 'wild', 'gentle', 'rapid',
+    ];
+    const animals = [
+        'fox', 'tiger', 'eagle', 'otter', 'panda', 'lynx', 'dolphin', 'wolf', 'owl', 'bear',
+    ];
+    const adj = adjectives[randInt(adjectives.length)];
+    const animal = animals[randInt(animals.length)];
+    const num = randInt(opts.maxRandom ?? 9999).toString(16); // hex для компактности
+    return `${prefix}_${adj}-${animal}-${num}`;
+}
+
 // CommonJS fallback (если в проекте require)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     generatePassword,
     generateEmail,
     generateCredentials,
+    generateRandomName
   };
+
+
+
 }

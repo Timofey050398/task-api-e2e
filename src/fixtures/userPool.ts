@@ -5,8 +5,6 @@ import { User } from '../model/User';
 import { LoginService } from '../services/api/LoginService';
 import { MailTmService } from '../services/mail/MailTmService';
 import {ApiFacade} from "../api/ApiFacade";
-import {loginServiceProvider} from "../providers/LoginServiceProvider";
-
 dotenv.config();
 
 interface PooledUser extends User {
@@ -55,9 +53,7 @@ const test = base.extend<Fixtures, WorkerFixtures>({
             const user = await acquireUser();
             console.log(`→ [${process.pid}] получил ${user.login}`);
 
-            await loginServiceProvider.runWithService(user, async () => {
-                await use(user);
-            });
+            await use(user);
 
             releaseUser(user.login);
             console.log(`← [${process.pid}] освободил ${user.login}`);
@@ -75,8 +71,8 @@ const test = base.extend<Fixtures, WorkerFixtures>({
         await use(mailService);
     },
 
-    api: async ({}, use) => {
-        const api = new ApiFacade();
+    api: async ({loginService}, use) => {
+        const api = new ApiFacade(loginService);
         await use(api);
     },
 });

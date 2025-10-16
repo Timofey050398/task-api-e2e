@@ -2,8 +2,8 @@ import {BaseClient} from "./core/BaseClient";
 
 
 export class AccountClient extends BaseClient {
-    constructor() {
-        super();
+    constructor(loginService) {
+        super(loginService);
     }
 
     async createCryptoWallet(currencyId, groupId, name){
@@ -19,7 +19,7 @@ export class AccountClient extends BaseClient {
 
     async createFiatWallet(currencyId, name){
         return await this.post(
-            "/accounts/create/crypto",
+            "/accounts/create/fiat",
             {
                 CurrencyID: currencyId,
                 name: name,
@@ -29,5 +29,9 @@ export class AccountClient extends BaseClient {
 
     async deleteWallet(walletNumber) {
         return await this.post("/accounts/delete_wallet", {walletNumber});
+    }
+
+    async getAccounts() {
+        return await this.post("/accounts/", {});
     }
 }

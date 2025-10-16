@@ -1,9 +1,10 @@
 import { AxiosInstance } from 'axios';
+import {LoginService} from "../../../services/api/LoginService";
 
 export class BaseClient {
     client: AxiosInstance;
 
-    constructor(baseUrl?: string);
+    constructor(loginService?: LoginService, baseUrl?: string) {};
 
     initAuthIfNeeded(): Promise<void>;
     setCookies(cookieString: string): void;

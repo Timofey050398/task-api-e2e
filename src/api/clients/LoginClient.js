@@ -1,4 +1,4 @@
-import {PublicClient} from "./core/PublicClient";
+import { PublicClient } from "./core/PublicClient";
 
 export const INVALID_CONFIRMATION_CODE = 'INVALID_CONFIRMATION_CODE';
 export const INVALID_LOGIN_OR_PASSWORD = 'INVALID_LOGIN_OR_PASSWORD';
@@ -19,14 +19,9 @@ export class LoginClient extends PublicClient {
      */
     async signInRequest(login, password, options = {}) {
         const payload = { login, password };
-
         const response = await this.post('/auth/client/sign-in/request', payload, options);
 
-        const setCookie = response.headers['set-cookie'];
-        if (setCookie) {
-            this.cookies = this.#mergeCookies(setCookie);
-        }
-
+        this._mergeCookiesFromResponse(response);
         return response;
     }
 
@@ -37,37 +32,33 @@ export class LoginClient extends PublicClient {
             this.#withSessionHeaders(options),
         );
 
-        const setCookie = response.headers['set-cookie'];
-        if (setCookie) {
-            this.cookies = this.#mergeCookies(setCookie, this.cookies);
-        }
-
+        this._mergeCookiesFromResponse(response);
         return response;
     }
 
     async signInFinalize(pin = '0000', options = {}) {
-        return await this.post(
+        const response = await this.post(
             '/auth/client/sign-in/finalize',
             { PIN: pin },
             this.#withSessionHeaders(options),
         );
+
+        this._mergeCookiesFromResponse(response);
+        return response;
     }
 
     async resetPassword(login, options = {}) {
         return await this.post(
             '/email/reset_password',
-            {login : login},
+            { login },
             this.#withSessionHeaders(options),
-            );
+        );
     }
 
     async getResetPasswordToken(login, code, options = {}) {
         return await this.post(
             '/email/get_reset_password_token',
-            {
-                login : login,
-                code : code
-            },
+            { login, code },
             this.#withSessionHeaders(options),
         );
     }
@@ -75,10 +66,7 @@ export class LoginClient extends PublicClient {
     async changePassword(password, uuid, options = {}) {
         return await this.post(
             '/auth/client/change_password',
-            {
-                password : password,
-                uuid : uuid
-            },
+            { password, uuid },
             this.#withSessionHeaders(options),
         );
     }
@@ -93,13 +81,22 @@ export class LoginClient extends PublicClient {
         return { ...options, headers };
     }
 
-    #mergeCookies(newCookies, existing = '') {
-        const serialized = newCookies.map(c => c.split(';')[0]).join('; ');
+    _mergeCookiesFromResponse(response) {
+        const setCookies = response?.headers?.['set-cookie'];
+        if (!setCookies) return;
 
-        if (!existing) {
-            return serialized;
-        }
+        const newCookies = setCookies.map(c => c.split(';')[0]);
+        const existing = this.cookies ? this.cookies.split('; ') : [];
 
-        return [existing, serialized].filter(Boolean).join('; ');
+        const cookieMap = new Map();
+
+        [...existing, ...newCookies].forEach(c => {
+            const [k, v] = c.split('=');
+            if (k && v) cookieMap.set(k, v);
+        });
+
+        this.cookies = Array.from(cookieMap.entries())
+            .map(([k, v]) => `${k}=${v}`)
+            .join('; ');
     }
 }

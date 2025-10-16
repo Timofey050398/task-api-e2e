@@ -9,14 +9,21 @@ import colors from 'colors';
  *   new LogInterceptor(client);
  */
 export class LogInterceptor {
-    constructor(axiosInstance) {
+    constructor(axiosInstance, withHeaders = false) {
         if (!axiosInstance || !axiosInstance.interceptors) {
             throw new Error('LogInterceptor requires a valid axios instance');
         }
 
+        this.withHeaders = withHeaders;
+
         axiosInstance.interceptors.request.use((config) => {
-            const { method, baseURL = '', url, data } = config;
+            const { method, baseURL = '', url, data, headers } = config;
             console.log(colors.cyan(`[HTTP] → ${method.toUpperCase()} ${baseURL}${url}`));
+
+            if (this.withHeaders && headers) {
+                console.log(colors.magenta(`[HTTP] Request Headers:`));
+                console.log(colors.gray(JSON.stringify(headers, null, 2)));
+            }
 
             if (data) {
                 console.log(colors.gray(`[HTTP] Payload: ${JSON.stringify(data, null, 2)}`));
@@ -42,6 +49,7 @@ export class LogInterceptor {
             const duration = this._getDuration(config);
             console.log(colors.red(`[HTTP] ✖ ${config?.method?.toUpperCase() || ''} ${config?.url || ''} failed (${duration}ms)`));
             console.error(colors.red(`[HTTP] Error: ${error.message}`));
+
             throw error;
         });
     }

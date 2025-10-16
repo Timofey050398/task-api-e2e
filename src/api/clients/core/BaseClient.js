@@ -3,13 +3,12 @@ import { AuthCache } from './AuthCache.js';
 import axios from "axios";
 import {LogInterceptor} from "./interceptors/LogInterceptor";
 import {AllureAxiosInterceptor} from "./interceptors/AllureAxiosInterceptor";
-import {loginServiceProvider} from "../../../providers/LoginServiceProvider";
 
 /**
  * aвторизованный базовый axios клиент
  */
 export class BaseClient {
-    constructor(baseUrl = config.baseUrl) {
+    constructor(loginService, baseUrl = config.baseUrl) {
         this.client = axios.create({
             baseURL: baseUrl,
             withCredentials: true,
@@ -20,6 +19,7 @@ export class BaseClient {
             },
             validateStatus: () => true,
         });
+        this.loginService = loginService;
         new LogInterceptor(this.client);
         new AllureAxiosInterceptor(this.client);
     }
@@ -27,8 +27,7 @@ export class BaseClient {
     async initAuthIfNeeded() {
         if (!AuthCache.cookies || !AuthCache.sseToken) {
             console.log('[BaseClient] Auth missing, performing login...');
-            const loginService = await loginServiceProvider.get();
-            const { cookies, sseToken } = await loginService.login();
+            const { cookies, sseToken } = await this.loginService.login();
             AuthCache.set({ cookies, sseToken });
         }
 

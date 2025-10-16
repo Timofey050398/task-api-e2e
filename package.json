@@ -19,11 +19,15 @@
   "dependencies": {
     "allure-js-commons": "^3.4.1",
     "axios": "^1.12.2",
+    "bitcoinjs-lib": "^6.1.5",
     "colors": "^1.4.0",
     "dotenv": "^17.2.3",
+    "ethers": "^6.13.1",
     "iconv-lite": "^0.7.0",
     "input": "^1.0.1",
     "quoted-printable": "^1.0.1",
-    "telegram": "^2.26.22"
+    "telegram": "^2.26.22",
+    "tonweb": "^0.0.67",
+    "tronweb": "^6.0.0"
   }
 }

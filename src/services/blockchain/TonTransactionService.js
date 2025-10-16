@@ -27,6 +27,22 @@ export class TonTransactionService extends BlockchainTransactionService {
         this.currency = Currencies.TON;
     }
 
+    async send(toAddress, amount, currency) {
+        if (!currency) {
+            throw new Error('Currency required');
+        }
+
+        if (currency.network !== Network.TON) {
+            throw new Error('Only TON network supported');
+        }
+
+        if ('tokenContract' in currency && currency.tokenContract) {
+            return this.sendTokenTransaction(toAddress, amount, currency);
+        }
+
+        return this.sendNativeTransaction(toAddress, amount);
+    }
+
     /** Создает контракт кошелька TON */
     getWalletContract({
                           publicKey = this.publicKey,

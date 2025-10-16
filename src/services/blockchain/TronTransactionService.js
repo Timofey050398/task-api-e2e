@@ -28,6 +28,22 @@ export class TronTransactionService extends BlockchainTransactionService {
             new TronWeb(fullNode, solidityNode, eventServer, privateKey);
     }
 
+    async send(to, amount, currency) {
+        if (!currency) {
+            throw new Error('Currency required');
+        }
+
+        if (currency.network !== Network.TRON) {
+            throw new Error('Only TRON network supported');
+        }
+
+        if ('tokenContract' in currency && currency.tokenContract) {
+            return this.sendTokenTransaction(to, amount, currency);
+        }
+
+        return this.sendNativeTransaction(to, amount);
+    }
+
     /**
      * Отправка нативных TRX
      * @param {string} to - адрес получателя

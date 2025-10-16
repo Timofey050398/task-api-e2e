@@ -2,46 +2,61 @@ import {
     BtcTransactionService,
     EthTransactionService,
     TonTransactionService,
-    TronTransactionService
+    TronTransactionService,
 } from "./index";
 import {Currencies, CurrencyKey, CurrencyType} from "../../model/Currency";
 import {Network} from "../../model/Network";
 
 type Currency = typeof Currencies[CurrencyKey];
 
+type BlockchainService = {
+    network: Network;
+    send: (to: string, value: string | number | bigint, currency: Currency) => Promise<unknown>;
+};
+
+type ServiceRegistry = Record<Network, BlockchainService>;
+
 export class BlockchainServiceFacade {
-    readonly btc: BtcTransactionService;
-    readonly eth: EthTransactionService;
-    readonly tron: TronTransactionService;
-    readonly ton: TonTransactionService;
+    readonly btc: BtcTransactionService & BlockchainService;
+    readonly eth: EthTransactionService & BlockchainService;
+    readonly tron: TronTransactionService & BlockchainService;
+    readonly ton: TonTransactionService & BlockchainService;
+
+    private readonly services: ServiceRegistry;
 
     constructor() {
-        this.btc = new BtcTransactionService();
-        this.eth = new EthTransactionService();
-        this.tron = new TronTransactionService();
-        this.ton = new TonTransactionService();
+        this.btc = new BtcTransactionService() as BtcTransactionService & BlockchainService;
+        this.eth = new EthTransactionService() as EthTransactionService & BlockchainService;
+        this.tron = new TronTransactionService() as TronTransactionService & BlockchainService;
+        this.ton = new TonTransactionService() as TonTransactionService & BlockchainService;
+
+        this.services = {
+            [Network.BTC]: this.btc,
+            [Network.ETH]: this.eth,
+            [Network.TRON]: this.tron,
+            [Network.TON]: this.ton,
+        };
     }
 
-    getInstance(currency: Currency):
-        | BtcTransactionService
-        | EthTransactionService
-        | TronTransactionService
-        | TonTransactionService {
+    async sendToken(
+        to: string,
+        value: string | number | bigint,
+        currency: Currency,
+    ): Promise<unknown> {
         if (currency.type === CurrencyType.FIAT) {
             throw new Error("Fiat currencies are not supported");
         }
 
-        switch (currency.network) {
-            case Network.BTC:
-                return this.btc;
-            case Network.ETH:
-                return this.eth;
-            case Network.TRON:
-                return this.tron;
-            case Network.TON:
-                return this.ton;
-            default:
-                throw new Error(`Unsupported network: ${currency.network}`);
+        if (!currency.network) {
+            throw new Error("Currency does not specify a blockchain network");
         }
+
+        const service = this.services[currency.network];
+
+        if (!service) {
+            throw new Error(`Unsupported network: ${currency.network}`);
+        }
+
+        return service.send(to, value, currency);
     }
 }

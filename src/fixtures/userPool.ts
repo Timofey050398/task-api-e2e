@@ -38,12 +38,17 @@ function releaseUser(login: string): void {
     if (user) user.busy = false;
 }
 
-const test = base.extend<{
-    user: PooledUser;
+type Fixtures = {
     loginService: LoginService;
     api: ApiFacade;
     mailService: MailTmService;
-}>({
+};
+
+type WorkerFixtures = {
+    user: PooledUser;
+};
+
+const test = base.extend<Fixtures, WorkerFixtures>({
     user: [
         async ({}, use) => {
             const user = await acquireUser();
@@ -54,7 +59,7 @@ const test = base.extend<{
             releaseUser(user.login);
             console.log(`← [${process.pid}] освободил ${user.login}`);
         },
-        { scope: 'worker' as any },
+        { scope: 'worker' },
     ],
 
     loginService: async ({ user }, use) => {
@@ -74,3 +79,4 @@ const test = base.extend<{
 });
 
 export { test };
+export { expect } from '@playwright/test';

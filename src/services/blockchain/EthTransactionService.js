@@ -19,6 +19,22 @@ export class EthTransactionService extends BlockchainTransactionService {
         this.tokenAbi = options.tokenAbi ?? DEFAULT_ERC20_ABI;
     }
 
+    async send(to, amount, currency) {
+        if (!currency) {
+            throw new Error('Currency required');
+        }
+
+        if (currency.network !== Network.ETH) {
+            throw new Error('Only ETH network supported');
+        }
+
+        if ('tokenContract' in currency && currency.tokenContract) {
+            return this.sendTokenTransaction(to, amount, currency);
+        }
+
+        return this.sendNativeTransaction(to, amount);
+    }
+
     /**
      * Отправка ETH
      * @param {string} to - получатель

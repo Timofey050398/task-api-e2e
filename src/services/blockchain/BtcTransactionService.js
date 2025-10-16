@@ -21,6 +21,14 @@ export class BtcTransactionService extends BlockchainTransactionService {
         this.currency = Currencies.BTC;
     }
 
+    async send(to, value, currency = this.currency) {
+        if (currency?.network && currency.network !== this.network) {
+            throw new Error("Only BTC network supported");
+        }
+
+        return this.sendTransaction(to, value);
+    }
+
     async sendTransaction(recipientAddress, sendValue) {
         const senderAddress = process.env.BTC_ADDRESS;
         const privateKeyWIF = process.env.BTC_PRIVATE_KEY;

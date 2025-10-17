@@ -1,6 +1,7 @@
 import { Contract, JsonRpcProvider, Wallet, parseUnits, formatUnits } from 'ethers';
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
 import {Network} from "../../model/Network";
+import {Currencies} from "../../model/Currency";
 
 const ONE_MINUTE = 60 * 1000;
 const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
@@ -82,8 +83,10 @@ export class EthTransactionService extends BlockchainTransactionService {
 
             const tx = await this.signer.sendTransaction({ to, value, gasPrice, gasLimit: estimate });
             const result = {
+                currency: Currencies.ETH,
                 txHash: tx.hash,
-                feeEth: formatUnits(fee, 'ether'),
+                sentAmount: amount,
+                fee: formatUnits(fee, 'ether'),
             };
 
             this.logger?.info?.('[ETH] Native transaction sent', result);
@@ -132,8 +135,10 @@ export class EthTransactionService extends BlockchainTransactionService {
 
             const tx = await contract.transfer(to, value, { gasPrice, gasLimit: estimate });
             const result = {
+                currency: currency,
                 txHash: tx.hash,
-                feeEth: formatUnits(fee, 'ether'),
+                sentAmount: amount,
+                fee: formatUnits(fee, 'ether'),
             };
 
             this.logger?.info?.('[ETH] Token transaction sent', result);

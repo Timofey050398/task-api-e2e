@@ -73,10 +73,10 @@ export class TronTransactionService extends BlockchainTransactionService {
             const feeTrx = this.tronWeb.fromSun(energyFee);
 
             const result = {
+                currency: Currencies.TRX,
                 txHash: receipt.txid,
-                feeTrx,
-                energyUsed: info?.receipt?.energy_usage_total ?? 0,
-                bandwidthUsed: info?.receipt?.net_usage ?? 0,
+                sentAmount: amount,
+                fee: feeTrx
             };
 
             this.logger?.info?.('[TRON] Native transaction sent', result);
@@ -124,8 +124,10 @@ export class TronTransactionService extends BlockchainTransactionService {
             const feeTrx = this.tronWeb.fromSun(info?.fee ?? info?.receipt?.energy_fee ?? 0);
 
             const result = {
+                currency: currency,
                 txHash: txId,
-                feeTrx,
+                sentAmount: amount,
+                fee: feeTrx,
             };
 
             this.logger?.info?.('[TRON] Token transaction sent', result);

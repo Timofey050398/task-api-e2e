@@ -80,8 +80,10 @@ export class TonTransactionService extends BlockchainTransactionService {
             }).send();
 
             const response = {
+                currency: Currencies.TON,
                 txHash: result?.id?.hash ?? 'unknown',
-                feeTon: estimateTonFee(amountNano),
+                sentAmount: amount,
+                fee: estimateTonFee(amountNano),
             };
 
             this.logger?.info?.('[TON] Native transaction sent', response);
@@ -142,8 +144,10 @@ export class TonTransactionService extends BlockchainTransactionService {
             }).send();
 
             const response = {
+                currency: currency,
                 txHash: result?.id?.hash ?? 'unknown',
-                feeTon: '0.05',
+                sentAmount: amount,
+                fee: '0.05',
             };
 
             this.logger?.info?.('[TON] Token transaction sent', response);

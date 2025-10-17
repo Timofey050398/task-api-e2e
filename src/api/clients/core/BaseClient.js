@@ -9,7 +9,7 @@ import {LoginService} from "../../../services/api/LoginService";
  * aвторизованный базовый axios клиент
  */
 export class BaseClient {
-    constructor(user, baseUrl = config.baseUrl) {
+    constructor(user, processErrors = true, baseUrl = config.baseUrl) {
         this.client = axios.create({
             baseURL: baseUrl,
             withCredentials: true,
@@ -18,7 +18,8 @@ export class BaseClient {
                 'Accept': '*/*',
                 'locale': 'ru',
             },
-            validateStatus: () => true,
+            validateStatus: (status) =>
+                processErrors ? true : status >= 200 && status < 300,
         });
         this.loginService = new LoginService(user);
         new LogInterceptor(this.client);

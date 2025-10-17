@@ -11,8 +11,15 @@ type Currency = typeof Currencies[CurrencyKey];
 
 type BlockchainService = {
     network: Network;
-    send: (to: string, value: string | number | bigint, currency: Currency) => Promise<unknown>;
+    send: (to: string, value: string | number | bigint, currency: Currency) => Promise<TxResult>;
 };
+
+export interface TxResult {
+    currency: Currency;
+    txHash: string;
+    sentAmount: string | number | bigint;
+    fee: string | number | bigint;
+}
 
 type ServiceRegistry = Record<Network, BlockchainService>;
 
@@ -42,7 +49,7 @@ export class BlockchainServiceFacade {
         to: string,
         value: string | number | bigint,
         currency: Currency,
-    ): Promise<unknown> {
+    ): Promise<TxResult> {
         if (currency.type === CurrencyType.FIAT) {
             throw new Error("Fiat currencies are not supported");
         }

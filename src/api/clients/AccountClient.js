@@ -1,9 +1,10 @@
 import {BaseClient} from "./core/BaseClient";
+import {config} from "dotenv";
 
 
 export class AccountClient extends BaseClient {
-    constructor(user) {
-        super(user);
+    constructor(user, processErrors = true) {
+        super(user, processErrors);
     }
 
     async createCryptoWallet(currencyId, groupId, name){

@@ -80,7 +80,8 @@ export class BtcTransactionService extends BlockchainTransactionService {
 
             const res = await this.broadcastProvider(rawHex);
             const result = {
-                txid: res.txid ?? txid,
+                currency: Currencies.BTC,
+                txHash: res.txid ?? txid,
                 sentAmount: sendValue,
                 fee,
             };

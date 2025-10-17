@@ -1,7 +1,14 @@
-import { Contract, JsonRpcProvider, Wallet, parseUnits, formatUnits } from 'ethers';
+import { parseUnits, formatUnits } from 'ethers';
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
-import {Network} from "../../model/Network";
-import {Currencies} from "../../model/Currency";
+import { Network } from '../../model/Network.js';
+import { Currencies } from '../../model/Currency.js';
+import {
+    createTokenContract,
+    resolveEthNetworkName,
+    resolveEthProviderCandidate,
+    resolveProvider,
+    resolveSigner,
+} from './eth/config.js';
 
 const ONE_MINUTE = 60 * 1000;
 const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
@@ -64,12 +71,6 @@ export class EthTransactionService extends BlockchainTransactionService {
         return this.sendNativeTransaction(to, amount);
     }
 
-    /**
-     * Отправка ETH
-     * @param {string} to - получатель
-     * @param {string|number|bigint} amount - сумма (в ETH или в wei)
-     * @returns {Promise<{txHash: string, feeEth: string}>}
-     */
     async sendNativeTransaction(to, amount) {
         if (!this.signer) throw new Error('Signer not set');
         if (!to) throw new Error('Recipient address required');
@@ -87,7 +88,7 @@ export class EthTransactionService extends BlockchainTransactionService {
             const tx = await this.signer.sendTransaction({ to, value, gasPrice, gasLimit: estimate });
             const receipt = await tx.wait();
 
-            if (!receipt || receipt.status !== 1n && receipt.status !== 1) {
+            if (!receipt || (receipt.status !== 1n && receipt.status !== 1)) {
                 throw new Error(`[ETH] Native transaction ${tx.hash} was not confirmed successfully`);
             }
 
@@ -106,12 +107,6 @@ export class EthTransactionService extends BlockchainTransactionService {
         }
     }
 
-    /**
-     * @param {string} to
-     * @param {string|number} amount
-     * @param {typeof Currencies[keyof typeof Currencies]} currency
-     * @returns {Promise<{txHash: string, feeEth: string}>}
-     */
     async sendTokenTransaction(to, amount, currency) {
         if (!this.signer) throw new Error('Signer not set');
         if (!to) throw new Error('Recipient address required');
@@ -134,7 +129,7 @@ export class EthTransactionService extends BlockchainTransactionService {
         try {
             const tokenAddress = currency.tokenContract;
             const decimals = currency.decimal;
-            const contract = new Contract(tokenAddress, this.tokenAbi, this.signer);
+            const contract = createTokenContract(tokenAddress, this.tokenAbi, this.signer);
             const value = parseUnits(amount.toString(), decimals);
 
             const { gasPrice } = await this.provider.getFeeData();
@@ -145,7 +140,7 @@ export class EthTransactionService extends BlockchainTransactionService {
             const tx = await contract.transfer(to, value, { gasPrice, gasLimit: estimate });
             const receipt = await tx.wait();
 
-            if (!receipt || receipt.status !== 1n && receipt.status !== 1) {
+            if (!receipt || (receipt.status !== 1n && receipt.status !== 1)) {
                 throw new Error(`[ETH] Token transaction ${tx.hash} was not confirmed successfully`);
             }
 
@@ -162,40 +157,5 @@ export class EthTransactionService extends BlockchainTransactionService {
             this.logger?.error?.('[ETH] Failed to send token transaction', error);
             throw error;
         }
-    }
-}
-
-/** --- helpers --- */
-
-function resolveProvider(provider) {
-    if (!provider) return null;
-    if (typeof provider === 'string') return new JsonRpcProvider(provider);
-    return provider;
-}
-
-function resolveSigner(signer, provider) {
-    if (!signer) return null;
-    if (typeof signer === 'string') return new Wallet(signer, provider);
-    return signer;
-}
-
-function resolveEthNetworkName() {
-    return (process.env.ETH_NETWORK ?? 'mainnet').toLowerCase();
-}
-
-function resolveEthProviderCandidate(networkName) {
-    if (process.env.ETH_RPC_URL) {
-        return process.env.ETH_RPC_URL;
-    }
-
-    switch (networkName) {
-        case 'sepolia':
-            return 'https://rpc.sepolia.org';
-        case 'goerli':
-            return 'https://rpc.ankr.com/eth_goerli';
-        case 'holesky':
-            return 'https://ethereum-holesky.publicnode.com';
-        default:
-            return null;
     }
 }

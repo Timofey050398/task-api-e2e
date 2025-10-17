@@ -1,7 +1,4 @@
 import {BaseClient} from "./core/BaseClient";
-import {config} from "dotenv";
-
-
 export class AccountClient extends BaseClient {
     constructor(user, processErrors = true) {
         super(user, processErrors);

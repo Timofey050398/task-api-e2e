@@ -68,7 +68,8 @@ export class TonTransactionService extends BlockchainTransactionService {
 
         try {
             const contract = this.getWalletContract();
-            const seqno = await contract.methods.seqno().call();
+            const seqnoRaw = await contract.methods.seqno().call();
+            const seqno = normalizeSeqno(seqnoRaw);
             const amountNano = normalizeTonAmount(amount);
 
             const result = await contract.methods.transfer({
@@ -87,6 +88,12 @@ export class TonTransactionService extends BlockchainTransactionService {
             };
 
             this.logger?.info?.('[TON] Native transaction sent', response);
+
+            const expectedSeqno = seqno + 1;
+            await this.waitForConfirmation(response.txHash, {
+                statusProvider: createTonSeqnoStatusProvider(contract, expectedSeqno, { logger: this.logger }),
+            });
+
             return response;
         } catch (error) {
             this.logger?.error?.('[TON] Failed to send native transaction', error);
@@ -108,7 +115,8 @@ export class TonTransactionService extends BlockchainTransactionService {
 
         try {
             const contract = this.getWalletContract();
-            const seqno = await contract.methods.seqno().call();
+            const seqnoRaw = await contract.methods.seqno().call();
+            const seqno = normalizeSeqno(seqnoRaw);
 
             const tonWeb = this.tonWeb;
             const { Address, BN, toNano } = TonWeb.utils;
@@ -151,6 +159,12 @@ export class TonTransactionService extends BlockchainTransactionService {
             };
 
             this.logger?.info?.('[TON] Token transaction sent', response);
+
+            const expectedSeqno = seqno + 1;
+            await this.waitForConfirmation(response.txHash, {
+                statusProvider: createTonSeqnoStatusProvider(contract, expectedSeqno, { logger: this.logger }),
+            });
+
             return response;
         } catch (error) {
             this.logger?.error?.('[TON] Failed to send token transaction', error);
@@ -182,6 +196,43 @@ function scaleByDecimals(value, decimals) {
     const paddedFraction = (fractionalPart + '0'.repeat(decimals)).slice(0, decimals);
     const normalized = `${integerPart}${paddedFraction}`.replace(/^0+(\d)/, '$1');
     return normalized === '' ? '0' : normalized;
+}
+
+function normalizeSeqno(value) {
+    if (value === null || value === undefined) {
+        throw new Error('TON seqno value is not available');
+    }
+
+    if (typeof value === 'number') {
+        return value;
+    }
+
+    if (typeof value === 'bigint') {
+        return Number(value);
+    }
+
+    if (value && typeof value.toNumber === 'function') {
+        return value.toNumber();
+    }
+
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) {
+        throw new Error('Unable to parse TON seqno value');
+    }
+    return parsed;
+}
+
+function createTonSeqnoStatusProvider(contract, expectedSeqno, { logger } = {}) {
+    return async () => {
+        try {
+            const currentRaw = await contract.methods.seqno().call();
+            const current = normalizeSeqno(currentRaw);
+            return { confirmed: current >= expectedSeqno, seqno: current };
+        } catch (error) {
+            logger?.warn?.('[TON] Status check error', error?.message ?? error);
+            return { confirmed: false, error };
+        }
+    };
 }
 
 // Т.к. точный расчет fee по TON API недоступен без RPC-трейсинга, делаем простую оценку

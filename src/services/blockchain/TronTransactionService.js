@@ -23,9 +23,13 @@ export class TronTransactionService extends BlockchainTransactionService {
             throw new Error('TRON_PRIVATE_KEY not found in environment');
         }
 
+        this.logger = options.logger ?? console;
         this.tronWeb =
             options.tronWeb ??
             new TronWeb(fullNode, solidityNode, eventServer, privateKey);
+
+        const statusProvider = options.statusProvider ?? createTronStatusProvider(() => this.tronWeb, { logger: this.logger });
+        this.setStatusProvider(statusProvider);
     }
 
     async send(to, amount, currency) {
@@ -61,7 +65,8 @@ export class TronTransactionService extends BlockchainTransactionService {
         const signed = await this.tronWeb.trx.sign(tx);
         const receipt = await this.tronWeb.trx.sendRawTransaction(signed);
 
-        const info = await this.tronWeb.trx.getTransactionInfo(receipt.txid).catch(() => null);
+        const confirmation = await this.waitForConfirmation(receipt.txid);
+        const info = extractTransactionInfo(confirmation.status);
         const energyFee = info?.receipt?.energy_fee ?? 0;
         const feeTrx = this.tronWeb.fromSun(energyFee);
 
@@ -97,11 +102,13 @@ export class TronTransactionService extends BlockchainTransactionService {
             shouldPollResponse: false,
         });
 
-        const info = await this.tronWeb.trx.getTransactionInfo(tx);
-        const feeTrx = this.tronWeb.fromSun(info?.fee ?? 0);
+        const txId = normalizeTransactionId(tx);
+        const confirmation = await this.waitForConfirmation(txId);
+        const info = extractTransactionInfo(confirmation.status);
+        const feeTrx = this.tronWeb.fromSun(info?.fee ?? info?.receipt?.energy_fee ?? 0);
 
         return {
-            txHash: tx,
+            txHash: txId,
             feeTrx,
         };
     }
@@ -112,4 +119,49 @@ function scaleDecimals(value, decimals) {
     const [intPart, frac = ''] = value.toString().split('.');
     const padded = (frac + '0'.repeat(decimals)).slice(0, decimals);
     return `${intPart}${padded}`;
+}
+
+function createTronStatusProvider(getTronWeb, { logger } = {}) {
+    return async (txId) => {
+        const tronWeb = getTronWeb();
+        if (!tronWeb) {
+            throw new Error('TronWeb client is not initialized');
+        }
+
+        try {
+            const info = await tronWeb.trx.getTransactionInfo(txId);
+            if (!info || Object.keys(info).length === 0) {
+                return { confirmed: false, info: null };
+            }
+
+            const result = info.receipt?.result ?? info.result;
+            const confirmed = typeof result === 'string'
+                ? result.toLowerCase() === 'success'
+                : Boolean(info.receipt);
+
+            return { confirmed, info };
+        } catch (error) {
+            const message = error?.message ?? '';
+            if (/not found|doesn't exist|transaction has not existed/i.test(message)) {
+                return { confirmed: false, info: null };
+            }
+
+            logger?.warn?.('TRON status check error:', message || error);
+            return { confirmed: false, error };
+        }
+    };
+}
+
+function extractTransactionInfo(status) {
+    if (!status) return null;
+    if (status.info) return status.info;
+    if (status.receipt || status.fee) return status;
+    return null;
+}
+
+function normalizeTransactionId(tx) {
+    if (typeof tx === 'string') return tx;
+    if (tx?.txid) return tx.txid;
+    if (tx?.transaction?.txID) return tx.transaction.txID;
+    throw new Error('Unable to determine TRON transaction id');
 }

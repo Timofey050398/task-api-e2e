@@ -14,8 +14,33 @@ export class EthTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 15 * 1000,
         });
 
-        this.provider = resolveProvider(process.env.ETH_RPC_URL);
-        this.signer = resolveSigner(process.env.ETH_PRIVATE_KEY, this.provider);
+        const providerCandidate = options.provider ?? process.env.ETH_RPC_URL;
+        this.provider = resolveProvider(providerCandidate);
+        if (!this.provider) {
+            throw new Error('ETH provider is not configured. Set ETH_RPC_URL or pass provider via options.');
+        }
+
+        const signerCandidate = options.signer ?? process.env.ETH_PRIVATE_KEY;
+        this.signer = resolveSigner(signerCandidate, this.provider);
+        if (!this.signer) {
+            throw new Error('ETH signer is not configured. Set ETH_PRIVATE_KEY or pass signer via options.');
+        }
+
+        if (typeof this.provider.getFeeData !== 'function' || typeof this.provider.getBlockNumber !== 'function') {
+            throw new Error('Provided ETH provider does not implement required interface');
+        }
+
+        if (typeof this.signer.estimateGas !== 'function' || typeof this.signer.sendTransaction !== 'function') {
+            throw new Error('Provided ETH signer does not implement required interface');
+        }
+
+        if (this.signer.provider !== this.provider && typeof this.signer.connect === 'function') {
+            this.signer = this.signer.connect(this.provider);
+        }
+
+        if (this.signer.provider !== this.provider) {
+            throw new Error('ETH signer must be connected to the configured provider');
+        }
         this.tokenAbi = options.tokenAbi ?? DEFAULT_ERC20_ABI;
     }
 

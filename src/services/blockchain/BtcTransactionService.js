@@ -17,7 +17,6 @@ export class BtcTransactionService extends BlockchainTransactionService {
         });
 
         this.bitcoinNetwork = resolveBitcoinNetwork(options.bitcoinNetwork ?? "mainnet");
-        this.logger = options.logger ?? console;
         this.utxoProvider = options.utxoProvider ?? createBlockstreamUtxoProvider({ logger: this.logger });
         this.feeRateProvider = options.feeRateProvider ?? createMempoolFeeRateProvider({ logger: this.logger });
         this.broadcastProvider = options.broadcastProvider ?? broadcastViaBlockstream;
@@ -33,56 +32,65 @@ export class BtcTransactionService extends BlockchainTransactionService {
     }
 
     async sendTransaction(recipientAddress, sendValue) {
-        const senderAddress = process.env.BTC_ADDRESS;
-        const privateKeyWIF = process.env.BTC_PRIVATE_KEY;
+        this.logger?.info?.("[BTC] Preparing transaction", { recipientAddress, amount: sendValue });
 
-        if (!senderAddress || !privateKeyWIF) {
-            throw new Error("BTC_ADDRESS or BTC_PRIVATE_KEY missing from .env");
+        try {
+            const senderAddress = process.env.BTC_ADDRESS;
+            const privateKeyWIF = process.env.BTC_PRIVATE_KEY;
+
+            if (!senderAddress || !privateKeyWIF) {
+                throw new Error("BTC_ADDRESS or BTC_PRIVATE_KEY missing from .env");
+            }
+
+            const keyPair = ECPair.fromWIF(privateKeyWIF, this.bitcoinNetwork);
+
+            const utxos = await this.utxoProvider(senderAddress);
+            if (!utxos.length) throw new Error("No UTXO found for sender address");
+
+            const feeRate = await this.feeRateProvider();
+
+            const {
+                selectedUtxos,
+                fee,
+                changeValue,
+            } = selectUtxosForAmount({
+                utxos,
+                sendValue,
+                feeRate,
+                senderAddress,
+                bitcoinNetwork: this.bitcoinNetwork,
+            });
+
+            const outputs = [
+                { address: recipientAddress, value: sendValue },
+            ];
+            if (changeValue >= DUST_THRESHOLD) {
+                outputs.push({ address: senderAddress, value: changeValue });
+            }
+
+            const psbt = new bitcoin.Psbt({ network: this.bitcoinNetwork });
+            selectedUtxos.forEach((input) => psbt.addInput(input));
+            outputs.forEach((o) => psbt.addOutput(o));
+            psbt.signAllInputs(keyPair);
+            psbt.finalizeAllInputs();
+
+            const tx = psbt.extractTransaction();
+            const rawHex = tx.toHex();
+            const txid = tx.getId();
+
+            const res = await this.broadcastProvider(rawHex);
+            const result = {
+                txid: res.txid ?? txid,
+                sentAmount: sendValue,
+                fee,
+            };
+
+            this.logger?.info?.("[BTC] Transaction broadcasted", result);
+            return result;
+        } catch (error) {
+            this.logger?.error?.("[BTC] Failed to send transaction", error);
+            throw error;
         }
-
-        const keyPair = ECPair.fromWIF(privateKeyWIF, this.bitcoinNetwork);
-
-        const utxos = await this.utxoProvider(senderAddress);
-        if (!utxos.length) throw new Error("No UTXO found for sender address");
-
-        const feeRate = await this.feeRateProvider();
-
-        const {
-            selectedUtxos,
-            fee,
-            changeValue,
-        } = selectUtxosForAmount({
-            utxos,
-            sendValue,
-            feeRate,
-            senderAddress,
-            bitcoinNetwork: this.bitcoinNetwork,
-        });
-
-        const outputs = [
-            { address: recipientAddress, value: sendValue },
-        ];
-        if (changeValue >= DUST_THRESHOLD) {
-            outputs.push({ address: senderAddress, value: changeValue });
-        }
-
-        const psbt = new bitcoin.Psbt({ network: this.bitcoinNetwork });
-        selectedUtxos.forEach((input) => psbt.addInput(input));
-        outputs.forEach((o) => psbt.addOutput(o));
-        psbt.signAllInputs(keyPair);
-        psbt.finalizeAllInputs();
-
-        const tx = psbt.extractTransaction();
-        const rawHex = tx.toHex();
-        const txid = tx.getId();
-
-        const res = await this.broadcastProvider(rawHex);
-
-        return {
-            txid: res.txid ?? txid,
-            sentAmount: sendValue,
-            fee,
-        };
     }
 }
 

@@ -11,6 +11,7 @@ export class BlockchainTransactionService {
         recommendedConfirmationTimeMs,
         pollIntervalMs = 5000,
         statusProvider = null,
+        logger = console,
     } = {}) {
         if (!network) {
             throw new Error('network is required');
@@ -28,6 +29,7 @@ export class BlockchainTransactionService {
         this.recommendedConfirmationTimeMs = recommendedConfirmationTimeMs;
         this.pollIntervalMs = pollIntervalMs;
         this.statusProvider = statusProvider;
+        this.logger = logger ?? console;
     }
 
     /**
@@ -72,6 +74,10 @@ export class BlockchainTransactionService {
         }
 
         const startedAt = Date.now();
+        this.logger?.info?.(
+            `[${this.network}] Waiting for confirmation`,
+            { transactionId, timeoutMs, pollIntervalMs },
+        );
         let attempts = 0;
         let lastStatus = null;
 
@@ -85,6 +91,10 @@ export class BlockchainTransactionService {
 
             if (this.isConfirmed(lastStatus)) {
                 const elapsedMs = Date.now() - startedAt;
+                this.logger?.info?.(
+                    `[${this.network}] Transaction confirmed`,
+                    { transactionId, elapsedMs, attempts },
+                );
                 return {
                     confirmed: true,
                     status: lastStatus,
@@ -102,6 +112,11 @@ export class BlockchainTransactionService {
         error.lastStatus = lastStatus;
         error.elapsedMs = Date.now() - startedAt;
         error.attempts = attempts;
+
+        this.logger?.error?.(
+            `[${this.network}] Confirmation timeout`,
+            { transactionId, attempts, elapsedMs: error.elapsedMs },
+        );
 
         throw error;
     }

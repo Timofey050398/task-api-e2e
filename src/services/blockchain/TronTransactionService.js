@@ -23,7 +23,6 @@ export class TronTransactionService extends BlockchainTransactionService {
             throw new Error('TRON_PRIVATE_KEY not found in environment');
         }
 
-        this.logger = options.logger ?? console;
         this.tronWeb =
             options.tronWeb ??
             new TronWeb(fullNode, solidityNode, eventServer, privateKey);
@@ -58,24 +57,34 @@ export class TronTransactionService extends BlockchainTransactionService {
         if (!to) throw new Error('Recipient address required');
         if (!this.tronWeb) throw new Error('TronWeb client not initialized');
 
-        const from = this.tronWeb.defaultAddress.base58;
-        const amountInSun = this.tronWeb.toSun(amount);
+        this.logger?.info?.('[TRON] Sending native transaction', { to, amount });
 
-        const tx = await this.tronWeb.transactionBuilder.sendTrx(to, amountInSun, from);
-        const signed = await this.tronWeb.trx.sign(tx);
-        const receipt = await this.tronWeb.trx.sendRawTransaction(signed);
+        try {
+            const from = this.tronWeb.defaultAddress.base58;
+            const amountInSun = this.tronWeb.toSun(amount);
 
-        const confirmation = await this.waitForConfirmation(receipt.txid);
-        const info = extractTransactionInfo(confirmation.status);
-        const energyFee = info?.receipt?.energy_fee ?? 0;
-        const feeTrx = this.tronWeb.fromSun(energyFee);
+            const tx = await this.tronWeb.transactionBuilder.sendTrx(to, amountInSun, from);
+            const signed = await this.tronWeb.trx.sign(tx);
+            const receipt = await this.tronWeb.trx.sendRawTransaction(signed);
 
-        return {
-            txHash: receipt.txid,
-            feeTrx,
-            energyUsed: info?.receipt?.energy_usage_total ?? 0,
-            bandwidthUsed: info?.receipt?.net_usage ?? 0,
-        };
+            const confirmation = await this.waitForConfirmation(receipt.txid);
+            const info = extractTransactionInfo(confirmation.status);
+            const energyFee = info?.receipt?.energy_fee ?? 0;
+            const feeTrx = this.tronWeb.fromSun(energyFee);
+
+            const result = {
+                txHash: receipt.txid,
+                feeTrx,
+                energyUsed: info?.receipt?.energy_usage_total ?? 0,
+                bandwidthUsed: info?.receipt?.net_usage ?? 0,
+            };
+
+            this.logger?.info?.('[TRON] Native transaction sent', result);
+            return result;
+        } catch (error) {
+            this.logger?.error?.('[TRON] Failed to send native transaction', error);
+            throw error;
+        }
     }
 
     /**
@@ -90,27 +99,41 @@ export class TronTransactionService extends BlockchainTransactionService {
         if (!currency) throw new Error('Currency required');
         if (currency.network !== Network.TRON) throw new Error('Only TRON network supported');
 
-        const tokenAddress = currency.tokenContract;
-        const decimals = currency.decimal ?? 6;
-        if (!tokenAddress) throw new Error('Token contract missing in currency');
-
-        const contract = await this.tronWeb.contract().at(tokenAddress);
-        const scaledAmount = scaleDecimals(amount, decimals);
-
-        const tx = await contract.transfer(to, scaledAmount).send({
-            feeLimit: 5_000_000,
-            shouldPollResponse: false,
+        this.logger?.info?.('[TRON] Sending token transaction', {
+            to,
+            amount,
+            tokenContract: currency.tokenContract,
         });
 
-        const txId = normalizeTransactionId(tx);
-        const confirmation = await this.waitForConfirmation(txId);
-        const info = extractTransactionInfo(confirmation.status);
-        const feeTrx = this.tronWeb.fromSun(info?.fee ?? info?.receipt?.energy_fee ?? 0);
+        try {
+            const tokenAddress = currency.tokenContract;
+            const decimals = currency.decimal ?? 6;
+            if (!tokenAddress) throw new Error('Token contract missing in currency');
 
-        return {
-            txHash: txId,
-            feeTrx,
-        };
+            const contract = await this.tronWeb.contract().at(tokenAddress);
+            const scaledAmount = scaleDecimals(amount, decimals);
+
+            const tx = await contract.transfer(to, scaledAmount).send({
+                feeLimit: 5_000_000,
+                shouldPollResponse: false,
+            });
+
+            const txId = normalizeTransactionId(tx);
+            const confirmation = await this.waitForConfirmation(txId);
+            const info = extractTransactionInfo(confirmation.status);
+            const feeTrx = this.tronWeb.fromSun(info?.fee ?? info?.receipt?.energy_fee ?? 0);
+
+            const result = {
+                txHash: txId,
+                feeTrx,
+            };
+
+            this.logger?.info?.('[TRON] Token transaction sent', result);
+            return result;
+        } catch (error) {
+            this.logger?.error?.('[TRON] Failed to send token transaction', error);
+            throw error;
+        }
     }
 }
 

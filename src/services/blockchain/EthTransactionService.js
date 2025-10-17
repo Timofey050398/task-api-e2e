@@ -70,19 +70,28 @@ export class EthTransactionService extends BlockchainTransactionService {
         if (!this.signer) throw new Error('Signer not set');
         if (!to) throw new Error('Recipient address required');
 
-        const value = parseUnits(amount.toString(), 'ether');
+        this.logger?.info?.('[ETH] Sending native transaction', { to, amount: amount.toString() });
 
-        const { gasPrice } = await this.provider.getFeeData();
-        if (!gasPrice) throw new Error('Gas price unavailable from provider');
-        const estimate = await this.signer.estimateGas({ to, value });
-        const fee = gasPrice * estimate;
+        try {
+            const value = parseUnits(amount.toString(), 'ether');
 
-        const tx = await this.signer.sendTransaction({ to, value, gasPrice, gasLimit: estimate });
+            const { gasPrice } = await this.provider.getFeeData();
+            if (!gasPrice) throw new Error('Gas price unavailable from provider');
+            const estimate = await this.signer.estimateGas({ to, value });
+            const fee = gasPrice * estimate;
 
-        return {
-            txHash: tx.hash,
-            feeEth: formatUnits(fee, 'ether'),
-        };
+            const tx = await this.signer.sendTransaction({ to, value, gasPrice, gasLimit: estimate });
+            const result = {
+                txHash: tx.hash,
+                feeEth: formatUnits(fee, 'ether'),
+            };
+
+            this.logger?.info?.('[ETH] Native transaction sent', result);
+            return result;
+        } catch (error) {
+            this.logger?.error?.('[ETH] Failed to send native transaction', error);
+            throw error;
+        }
     }
 
     /**
@@ -104,22 +113,35 @@ export class EthTransactionService extends BlockchainTransactionService {
             throw new Error('Currency must include tokenContract and decimal');
         }
 
-        const tokenAddress = currency.tokenContract;
-        const decimals = currency.decimal;
-        const contract = new Contract(tokenAddress, this.tokenAbi, this.signer);
-        const value = parseUnits(amount.toString(), decimals);
+        this.logger?.info?.('[ETH] Sending token transaction', {
+            to,
+            amount: amount.toString(),
+            tokenContract: currency.tokenContract,
+        });
 
-        const { gasPrice } = await this.provider.getFeeData();
-        if (!gasPrice) throw new Error('Gas price unavailable from provider');
-        const estimate = await contract.estimateGas.transfer(to, value);
-        const fee = gasPrice * estimate;
+        try {
+            const tokenAddress = currency.tokenContract;
+            const decimals = currency.decimal;
+            const contract = new Contract(tokenAddress, this.tokenAbi, this.signer);
+            const value = parseUnits(amount.toString(), decimals);
 
-        const tx = await contract.transfer(to, value, { gasPrice, gasLimit: estimate });
+            const { gasPrice } = await this.provider.getFeeData();
+            if (!gasPrice) throw new Error('Gas price unavailable from provider');
+            const estimate = await contract.estimateGas.transfer(to, value);
+            const fee = gasPrice * estimate;
 
-        return {
-            txHash: tx.hash,
-            feeEth: formatUnits(fee, 'ether'),
-        };
+            const tx = await contract.transfer(to, value, { gasPrice, gasLimit: estimate });
+            const result = {
+                txHash: tx.hash,
+                feeEth: formatUnits(fee, 'ether'),
+            };
+
+            this.logger?.info?.('[ETH] Token transaction sent', result);
+            return result;
+        } catch (error) {
+            this.logger?.error?.('[ETH] Failed to send token transaction', error);
+            throw error;
+        }
     }
 }
 

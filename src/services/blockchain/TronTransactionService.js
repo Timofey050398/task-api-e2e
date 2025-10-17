@@ -2,6 +2,9 @@ import TronWeb from 'tronweb';
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
 import { Currencies } from '../../model/Currency.js';
 import { Network } from '../../model/Network.js';
+import { createTronStatusProvider } from './tron/providers.js';
+import { resolveTronNetworkName, resolveTronNodes } from './tron/config.js';
+import { extractTransactionInfo, normalizeTransactionId, scaleDecimals } from './tron/utils.js';
 
 const ONE_MINUTE = 60 * 1000;
 
@@ -53,12 +56,6 @@ export class TronTransactionService extends BlockchainTransactionService {
         return this.sendNativeTransaction(to, amount);
     }
 
-    /**
-     * Отправка нативных TRX
-     * @param {string} to - адрес получателя
-     * @param {number|string} amount - сумма в TRX
-     * @returns {Promise<{txHash: string, feeTrx: string}>}
-     */
     async sendNativeTransaction(to, amount) {
         if (!to) throw new Error('Recipient address required');
         if (!this.tronWeb) throw new Error('TronWeb client not initialized');
@@ -82,7 +79,7 @@ export class TronTransactionService extends BlockchainTransactionService {
                 currency: Currencies.TRX,
                 txHash: receipt.txid,
                 sentAmount: amount,
-                fee: feeTrx
+                fee: feeTrx,
             };
 
             this.logger?.info?.('[TRON] Native transaction sent', result);
@@ -93,13 +90,6 @@ export class TronTransactionService extends BlockchainTransactionService {
         }
     }
 
-    /**
-     * Отправка токенов TRC20
-     * @param {string} to - адрес получателя
-     * @param {number|string} amount - сумма в токенах (человеческое значение)
-     * @param {typeof Currencies[keyof typeof Currencies]} currency - токен (например, Currencies.USDT_TRC20)
-     * @returns {Promise<{txHash: string, feeTrx: string}>}
-     */
     async sendTokenTransaction(to, amount, currency) {
         if (!to) throw new Error('Recipient address required');
         if (!currency) throw new Error('Currency required');
@@ -142,99 +132,5 @@ export class TronTransactionService extends BlockchainTransactionService {
             this.logger?.error?.('[TRON] Failed to send token transaction', error);
             throw error;
         }
-    }
-}
-
-/** --- helpers --- */
-function scaleDecimals(value, decimals) {
-    const [intPart, frac = ''] = value.toString().split('.');
-    const padded = (frac + '0'.repeat(decimals)).slice(0, decimals);
-    return `${intPart}${padded}`;
-}
-
-function createTronStatusProvider(getTronWeb, { logger } = {}) {
-    return async (txId) => {
-        const tronWeb = getTronWeb();
-        if (!tronWeb) {
-            throw new Error('TronWeb client is not initialized');
-        }
-
-        try {
-            const info = await tronWeb.trx.getTransactionInfo(txId);
-            if (!info || Object.keys(info).length === 0) {
-                return { confirmed: false, info: null };
-            }
-
-            const result = info.receipt?.result ?? info.result;
-            const confirmed = typeof result === 'string'
-                ? result.toLowerCase() === 'success'
-                : Boolean(info.receipt);
-
-            return { confirmed, info };
-        } catch (error) {
-            const message = error?.message ?? '';
-            if (/not found|doesn't exist|transaction has not existed/i.test(message)) {
-                return { confirmed: false, info: null };
-            }
-
-            logger?.warn?.('TRON status check error:', message || error);
-            return { confirmed: false, error };
-        }
-    };
-}
-
-function extractTransactionInfo(status) {
-    if (!status) return null;
-    if (status.info) return status.info;
-    if (status.receipt || status.fee) return status;
-    return null;
-}
-
-function normalizeTransactionId(tx) {
-    if (typeof tx === 'string') return tx;
-    if (tx?.txid) return tx.txid;
-    if (tx?.transaction?.txID) return tx.transaction.txID;
-    throw new Error('Unable to determine TRON transaction id');
-}
-
-function resolveTronNetworkName() {
-    return (process.env.TRON_NETWORK ?? 'mainnet').toLowerCase();
-}
-
-function resolveTronNodes({ networkName, fullNode, solidityNode, eventServer }) {
-    const defaults = getDefaultTronNodes(networkName);
-
-    const resolvedFullNode = (fullNode ?? defaults.fullNode).replace(/\/$/, '');
-    const resolvedSolidityNode = (solidityNode ?? defaults.solidityNode ?? resolvedFullNode).replace(/\/$/, '');
-    const resolvedEventServer = (eventServer ?? defaults.eventServer ?? resolvedFullNode).replace(/\/$/, '');
-
-    return {
-        fullNode: resolvedFullNode,
-        solidityNode: resolvedSolidityNode,
-        eventServer: resolvedEventServer,
-    };
-}
-
-function getDefaultTronNodes(networkName) {
-    switch (networkName) {
-        case 'shasta':
-        case 'testnet':
-            return {
-                fullNode: 'https://api.shasta.trongrid.io',
-                solidityNode: 'https://api.shasta.trongrid.io',
-                eventServer: 'https://api.shasta.trongrid.io',
-            };
-        case 'nile':
-            return {
-                fullNode: 'https://nile.trongrid.io',
-                solidityNode: 'https://nile.trongrid.io',
-                eventServer: 'https://nile.trongrid.io',
-            };
-        default:
-            return {
-                fullNode: 'https://api.trongrid.io',
-                solidityNode: 'https://api.trongrid.io',
-                eventServer: 'https://api.trongrid.io',
-            };
     }
 }

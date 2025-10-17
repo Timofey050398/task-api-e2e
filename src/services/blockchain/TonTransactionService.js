@@ -2,8 +2,16 @@ import TonWeb from 'tonweb';
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
 import { Currencies } from '../../model/Currency.js';
 import { Network } from '../../model/Network.js';
-
-const ONE_MINUTE = 60 * 1000;
+import { resolveTonEndpoint, resolveTonNetworkName } from './ton/config.js';
+import { createTonWallet, createTonWeb } from './ton/wallet.js';
+import {
+    estimateTonFee,
+    normalizeSeqno,
+    normalizeTonAmount,
+    scaleByDecimals,
+} from './ton/utils.js';
+import { createTonSeqnoStatusProvider } from './ton/providers.js';
+import { ONE_MINUTE_MS } from './ton/constants.js';
 
 export class TonTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
@@ -11,7 +19,7 @@ export class TonTransactionService extends BlockchainTransactionService {
         super({
             ...options,
             network: 'TON',
-            recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? ONE_MINUTE,
+            recommendedConfirmationTimeMs: options.recommendedConfirmationTimeMs ?? ONE_MINUTE_MS,
             pollIntervalMs: options.pollIntervalMs ?? 5 * 1000,
         });
 
@@ -49,21 +57,16 @@ export class TonTransactionService extends BlockchainTransactionService {
         return this.sendNativeTransaction(toAddress, amount);
     }
 
-    /** Создает контракт кошелька TON */
     getWalletContract({
-                          publicKey = this.publicKey,
-                          version = this.defaultWalletVersion,
-                          workchain = this.defaultWorkchain,
-                      } = {}) {
+        publicKey = this.publicKey,
+        version = this.defaultWalletVersion,
+        workchain = this.defaultWorkchain,
+    } = {}) {
         if (!publicKey) throw new Error('publicKey is required');
 
-        const walletClass = this.tonWeb.wallet?.all?.[version];
-        if (!walletClass) throw new Error(`Unsupported wallet version: ${version}`);
-
-        return new walletClass(this.tonWeb.provider, { publicKey, wc: workchain });
+        return createTonWallet(this.tonWeb, { publicKey, version, workchain });
     }
 
-    /** Отправка TON */
     async sendNativeTransaction(toAddress, amount) {
         if (!this.secretKey || !this.publicKey)
             throw new Error('Wallet keys not configured in environment');
@@ -90,7 +93,7 @@ export class TonTransactionService extends BlockchainTransactionService {
                 currency: Currencies.TON,
                 txHash: result?.id?.hash ?? 'unknown',
                 sentAmount: amount,
-                fee: estimateTonFee(amountNano),
+                fee: estimateTonFee(),
             };
 
             this.logger?.info?.('[TON] Native transaction sent', response);
@@ -107,7 +110,6 @@ export class TonTransactionService extends BlockchainTransactionService {
         }
     }
 
-    /** Отправка Jetton (токена TON) */
     async sendTokenTransaction(toAddress, amount, currency) {
         if (!currency) throw new Error('Currency required');
         if (currency.network !== Network.TON) throw new Error('Only TON network supported');
@@ -136,22 +138,20 @@ export class TonTransactionService extends BlockchainTransactionService {
                 address: new Address(currency.tokenContract),
             });
 
-
             const responseAddr = contract.address;
             const amountUnits = scaleByDecimals(amount, currency.decimal ?? 9);
-            // noinspection JSUnresolvedFunction
             const payload = await jettonWallet.methods.transfer({
                 amount: new BN(amountUnits),
                 toAddress: new Address(toAddress),
                 responseAddress: responseAddr,
-                forwardAmount: new BN(toNano('0.02').toString()), // отправляем немного TON на исполнение
+                forwardAmount: new BN(toNano('0.02').toString()),
                 forwardPayload: null,
             }).getData();
 
             const result = await contract.methods.transfer({
                 secretKey: this.secretKey,
                 toAddress: jettonWallet.address.toString(true, true, true),
-                amount: toNano('0.05'), // комиссия в TON
+                amount: toNano('0.05'),
                 seqno,
                 payload,
                 sendMode: 3,
@@ -177,90 +177,4 @@ export class TonTransactionService extends BlockchainTransactionService {
             throw error;
         }
     }
-}
-
-/** --- helpers --- */
-function createTonWeb({ apiKey, endpoint }) {
-    const provider = new TonWeb.HttpProvider(endpoint, { apiKey });
-    return new TonWeb(provider);
-}
-
-function normalizeTonAmount(amount) {
-    const { BN, toNano } = TonWeb.utils;
-
-    if (typeof amount === 'bigint') return new BN(amount.toString());
-    if (typeof amount === 'number') return toNano(amount.toString());
-    if (typeof amount === 'string') return toNano(amount);
-    throw new Error('amount must be a bigint, number, or string');
-}
-
-function scaleByDecimals(value, decimals) {
-    if (typeof value === 'bigint') return value.toString();
-    const stringValue = value.toString();
-    const [integerPart, fractionalPart = ''] = stringValue.split('.');
-    const paddedFraction = (fractionalPart + '0'.repeat(decimals)).slice(0, decimals);
-    const normalized = `${integerPart}${paddedFraction}`.replace(/^0+(\d)/, '$1');
-    return normalized === '' ? '0' : normalized;
-}
-
-function resolveTonNetworkName() {
-    return (process.env.TON_NETWORK ?? 'mainnet').toLowerCase();
-}
-
-function resolveTonEndpoint(customEndpoint, networkName) {
-    if (customEndpoint) {
-        return customEndpoint.replace(/\/$/, '');
-    }
-
-    switch (networkName) {
-        case 'testnet':
-        case 'sandbox':
-            return 'https://testnet.toncenter.com/api/v2/jsonRPC';
-        default:
-            return 'https://toncenter.com/api/v2/jsonRPC';
-    }
-}
-
-function normalizeSeqno(value) {
-    if (value === null || value === undefined) {
-        throw new Error('TON seqno value is not available');
-    }
-
-    if (typeof value === 'number') {
-        return value;
-    }
-
-    if (typeof value === 'bigint') {
-        return Number(value);
-    }
-
-    if (value && typeof value.toNumber === 'function') {
-        return value.toNumber();
-    }
-
-    const parsed = Number(value);
-    if (Number.isNaN(parsed)) {
-        throw new Error('Unable to parse TON seqno value');
-    }
-    return parsed;
-}
-
-function createTonSeqnoStatusProvider(contract, expectedSeqno, { logger } = {}) {
-    return async () => {
-        try {
-            const currentRaw = await contract.methods.seqno().call();
-            const current = normalizeSeqno(currentRaw);
-            return { confirmed: current >= expectedSeqno, seqno: current };
-        } catch (error) {
-            logger?.warn?.('[TON] Status check error', error?.message ?? error);
-            return { confirmed: false, error };
-        }
-    };
-}
-
-// Т.к. точный расчет fee по TON API недоступен без RPC-трейсинга, делаем простую оценку
-function estimateTonFee() {
-    const { fromNano } = TonWeb.utils;
-    const baseFeeNano = BigInt(200_000_000); // ~0.2 TON запасом
-    return fromNano(baseFeeNano);
 }

@@ -16,11 +16,30 @@ export class BtcTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 30 * 1000,
         });
 
-        this.bitcoinNetwork = resolveBitcoinNetwork(options.bitcoinNetwork ?? "mainnet");
-        this.utxoProvider = options.utxoProvider ?? createBlockstreamUtxoProvider({ logger: this.logger });
+        const networkName = options.bitcoinNetwork ?? "mainnet";
+        this.bitcoinNetwork = resolveBitcoinNetwork(networkName);
+        this.bitcoinNetworkName = networkName;
+        this.blockstreamApiBaseUrl = resolveBlockstreamApiBaseUrl(options.blockstreamApiBaseUrl, this.bitcoinNetworkName);
+
+        this.utxoProvider = options.utxoProvider ?? createBlockstreamUtxoProvider({
+            logger: this.logger,
+            apiBaseUrl: this.blockstreamApiBaseUrl,
+        });
         this.feeRateProvider = options.feeRateProvider ?? createMempoolFeeRateProvider({ logger: this.logger });
-        this.broadcastProvider = options.broadcastProvider ?? broadcastViaBlockstream;
+        this.broadcastProvider = options.broadcastProvider ?? createBlockstreamBroadcastProvider({
+            apiBaseUrl: this.blockstreamApiBaseUrl,
+            logger: this.logger,
+        });
         this.currency = Currencies.BTC;
+
+        if (!this.statusProvider) {
+            this.setStatusProvider(
+                createBlockstreamStatusProvider({
+                    apiBaseUrl: this.blockstreamApiBaseUrl,
+                    logger: this.logger,
+                }),
+            );
+        }
     }
 
     async send(to, value, currency = this.currency) {
@@ -28,11 +47,17 @@ export class BtcTransactionService extends BlockchainTransactionService {
             throw new Error("Only BTC network supported");
         }
 
-        return this.sendTransaction(to, value);
+        const { satoshis, humanAmount } = normalizeBtcAmount(value);
+
+        return this.sendTransaction(to, satoshis, humanAmount);
     }
 
-    async sendTransaction(recipientAddress, sendValue) {
-        this.logger?.info?.("[BTC] Preparing transaction", { recipientAddress, amount: sendValue });
+    async sendTransaction(recipientAddress, sendValueSatoshis, humanAmount = sendValueSatoshis) {
+        this.logger?.info?.("[BTC] Preparing transaction", {
+            recipientAddress,
+            amount: humanAmount,
+            satoshis: sendValueSatoshis,
+        });
 
         try {
             const senderAddress = process.env.BTC_ADDRESS;
@@ -55,14 +80,14 @@ export class BtcTransactionService extends BlockchainTransactionService {
                 changeValue,
             } = selectUtxosForAmount({
                 utxos,
-                sendValue,
+                sendValue: sendValueSatoshis,
                 feeRate,
                 senderAddress,
                 bitcoinNetwork: this.bitcoinNetwork,
             });
 
             const outputs = [
-                { address: recipientAddress, value: sendValue },
+                { address: recipientAddress, value: sendValueSatoshis },
             ];
             if (changeValue >= DUST_THRESHOLD) {
                 outputs.push({ address: senderAddress, value: changeValue });
@@ -82,11 +107,19 @@ export class BtcTransactionService extends BlockchainTransactionService {
             const result = {
                 currency: Currencies.BTC,
                 txHash: res.txid ?? txid,
-                sentAmount: sendValue,
+                sentAmount: humanAmount,
                 fee,
             };
 
             this.logger?.info?.("[BTC] Transaction broadcasted", result);
+
+            try {
+                await this.waitForConfirmation(result.txHash);
+            } catch (error) {
+                this.logger?.error?.("[BTC] Confirmation error", error);
+                throw error;
+            }
+
             return result;
         } catch (error) {
             this.logger?.error?.("[BTC] Failed to send transaction", error);
@@ -98,9 +131,10 @@ export class BtcTransactionService extends BlockchainTransactionService {
 const DUST_THRESHOLD = 546;
 
 /** Получение UTXO через Blockstream API */
-function createBlockstreamUtxoProvider({ logger, timeoutMs = 10_000, retries = 3 } = {}) {
+function createBlockstreamUtxoProvider({ logger, timeoutMs = 10_000, retries = 3, apiBaseUrl = "https://blockstream.info/api" } = {}) {
     return async (address) => {
-        const url = `https://blockstream.info/api/address/${address}/utxo`;
+        const base = apiBaseUrl.replace(/\/$/, "");
+        const url = `${base}/address/${address}/utxo`;
         return retry(async () => {
             const res = await fetchWithTimeout(url, { timeoutMs });
             if (!res.ok) throw new Error(`UTXO fetch failed: ${res.status}`);
@@ -122,19 +156,26 @@ function createMempoolFeeRateProvider({ logger, timeoutMs = 10_000, retries = 3 
 }
 
 /** Отправка транзакции в сеть */
-async function broadcastViaBlockstream(rawTx) {
-    const res = await fetchWithTimeout("https://blockstream.info/api/tx", {
-        timeoutMs: 15_000,
-        fetchOptions: {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: rawTx,
-        },
-    });
-    if (!res.ok) throw new Error(`Broadcast failed: ${await res.text()}`);
-    const txid = await res.text();
-    console.log(`✅ Broadcasted: ${txid}`);
-    return { txid };
+function createBlockstreamBroadcastProvider({ apiBaseUrl = "https://blockstream.info/api", logger } = {}) {
+    const baseUrl = apiBaseUrl.replace(/\/$/, "");
+    return async (rawTx) => {
+        const res = await fetchWithTimeout(`${baseUrl}/tx`, {
+            timeoutMs: 15_000,
+            fetchOptions: {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: rawTx,
+            },
+        });
+        if (!res.ok) {
+            const message = await res.text();
+            logger?.error?.("[BTC] Broadcast error", message);
+            throw new Error(`Broadcast failed: ${message}`);
+        }
+        const txid = await res.text();
+        console.log(`✅ Broadcasted: ${txid}`);
+        return { txid };
+    };
 }
 
 function selectUtxosForAmount({ utxos, sendValue, feeRate, senderAddress, bitcoinNetwork }) {
@@ -242,4 +283,151 @@ function resolveBitcoinNetwork(name = "mainnet") {
         case "regtest": return bitcoin.networks.regtest ?? bitcoin.networks.testnet;
         default: return bitcoin.networks.bitcoin;
     }
+}
+
+function resolveBlockstreamApiBaseUrl(customUrl, networkName = "mainnet") {
+    if (customUrl) {
+        return customUrl.replace(/\/$/, "");
+    }
+
+    switch (networkName) {
+        case "testnet":
+        case "regtest":
+            return "https://blockstream.info/testnet/api";
+        default:
+            return "https://blockstream.info/api";
+    }
+}
+
+function createBlockstreamStatusProvider({ apiBaseUrl, logger, timeoutMs = 10_000, retries = 5 } = {}) {
+    if (!apiBaseUrl) {
+        throw new Error("apiBaseUrl is required for Blockstream status provider");
+    }
+
+    const baseUrl = apiBaseUrl.replace(/\/$/, "");
+
+    return async (txId) => {
+        const url = `${baseUrl}/tx/${txId}`;
+
+        try {
+            const response = await retry(
+                async () => {
+                    const res = await fetchWithTimeout(url, { timeoutMs });
+                    if (res.status === 404) {
+                        return { confirmed: false };
+                    }
+
+                    if (!res.ok) {
+                        throw new Error(`Status fetch failed: ${res.status}`);
+                    }
+
+                    return res.json();
+                },
+                { retries, logger },
+            );
+
+            if (!response) {
+                return { confirmed: false };
+            }
+
+            if (response.confirmed === false) {
+                return { confirmed: false };
+            }
+
+            const status = response.status ?? response;
+            if (status && typeof status === "object") {
+                return { confirmed: Boolean(status.confirmed), status };
+            }
+
+            return { confirmed: false, status };
+        } catch (error) {
+            logger?.warn?.("[BTC] Status check error", error?.message ?? error);
+            return { confirmed: false, error };
+        }
+    };
+}
+
+function normalizeBtcAmount(amount) {
+    if (typeof amount === "bigint") {
+        const satoshisBigInt = amount;
+        if (satoshisBigInt < 0n) {
+            throw new Error("BTC amount must be positive");
+        }
+
+        if (satoshisBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+            throw new Error("BTC amount exceeds safe integer range");
+        }
+
+        const satoshis = Number(satoshisBigInt);
+        return {
+            satoshis,
+            humanAmount: formatBtcFromSatoshis(satoshisBigInt),
+        };
+    }
+
+    if (typeof amount === "number") {
+        if (!Number.isFinite(amount)) {
+            throw new Error("BTC amount must be a finite number");
+        }
+        if (amount < 0) {
+            throw new Error("BTC amount must be positive");
+        }
+
+        const satoshis = Math.round(amount * 100_000_000);
+
+        if (!Number.isSafeInteger(satoshis)) {
+            throw new Error("BTC amount exceeds safe integer range");
+        }
+
+        const normalized = satoshis / 100_000_000;
+        if (Math.abs(normalized - amount) > Number.EPSILON) {
+            throw new Error("BTC amount precision exceeds 8 decimal places");
+        }
+
+        return {
+            satoshis,
+            humanAmount: formatBtcFromSatoshis(BigInt(satoshis)),
+        };
+    }
+
+    if (typeof amount === "string") {
+        const trimmed = amount.trim();
+        if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+            throw new Error("BTC amount must be a non-negative decimal string");
+        }
+
+        const [integerPartRaw, fractionalRaw = ""] = trimmed.split(".");
+        if (fractionalRaw.length > 8 && /[1-9]/.test(fractionalRaw.slice(8))) {
+            throw new Error("BTC amount precision exceeds 8 decimal places");
+        }
+
+        const integerPart = integerPartRaw === "" ? "0" : integerPartRaw;
+        const fractionalPart = (fractionalRaw + "0".repeat(8)).slice(0, 8);
+
+        const satoshiString = `${integerPart}${fractionalPart}`.replace(/^0+(?=\d)/, "");
+        const satoshisBigInt = BigInt(satoshiString === "" ? "0" : satoshiString);
+
+        if (satoshisBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+            throw new Error("BTC amount exceeds safe integer range");
+        }
+
+        return {
+            satoshis: Number(satoshisBigInt),
+            humanAmount: formatBtcFromSatoshis(satoshisBigInt),
+        };
+    }
+
+    throw new Error("Unsupported BTC amount type");
+}
+
+function formatBtcFromSatoshis(value) {
+    const bigIntValue = typeof value === "bigint" ? value : BigInt(value);
+    const negative = bigIntValue < 0n;
+    const absValue = negative ? -bigIntValue : bigIntValue;
+    const integerPart = absValue / 100_000_000n;
+    const fractionalPart = absValue % 100_000_000n;
+    const fractional = fractionalPart.toString().padStart(8, "0");
+    const normalizedFractional = fractional.replace(/0+$/, "");
+    const result = normalizedFractional ? `${integerPart.toString()}.${normalizedFractional}` : integerPart.toString();
+    return negative ? `-${result}` : result;
 }

@@ -82,6 +82,12 @@ export class EthTransactionService extends BlockchainTransactionService {
             const fee = gasPrice * estimate;
 
             const tx = await this.signer.sendTransaction({ to, value, gasPrice, gasLimit: estimate });
+            const receipt = await tx.wait();
+
+            if (!receipt || receipt.status !== 1n && receipt.status !== 1) {
+                throw new Error(`[ETH] Native transaction ${tx.hash} was not confirmed successfully`);
+            }
+
             const result = {
                 currency: Currencies.ETH,
                 txHash: tx.hash,
@@ -134,6 +140,12 @@ export class EthTransactionService extends BlockchainTransactionService {
             const fee = gasPrice * estimate;
 
             const tx = await contract.transfer(to, value, { gasPrice, gasLimit: estimate });
+            const receipt = await tx.wait();
+
+            if (!receipt || receipt.status !== 1n && receipt.status !== 1) {
+                throw new Error(`[ETH] Token transaction ${tx.hash} was not confirmed successfully`);
+            }
+
             const result = {
                 currency: currency,
                 txHash: tx.hash,

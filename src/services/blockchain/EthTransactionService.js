@@ -53,6 +53,9 @@ export class EthTransactionService extends BlockchainTransactionService {
             throw new Error('ETH signer must be connected to the configured provider');
         }
         this.tokenAbi = options.tokenAbi ?? DEFAULT_ERC20_ABI;
+        this.createTokenContract =
+            options.createTokenContract ??
+            ((tokenAddress) => createTokenContract(tokenAddress, this.tokenAbi, this.signer));
     }
 
     async send(to, amount, currency) {
@@ -129,7 +132,7 @@ export class EthTransactionService extends BlockchainTransactionService {
         try {
             const tokenAddress = currency.tokenContract;
             const decimals = currency.decimal;
-            const contract = createTokenContract(tokenAddress, this.tokenAbi, this.signer);
+            const contract = this.createTokenContract(tokenAddress);
             const value = parseUnits(amount.toString(), decimals);
 
             const { gasPrice } = await this.provider.getFeeData();

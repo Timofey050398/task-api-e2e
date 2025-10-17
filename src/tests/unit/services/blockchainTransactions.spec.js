@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import {
     BtcTransactionService,
     EthTransactionService,
-    TryTransactionService,
+    TronTransactionService,
     TonTransactionService,
-} from '../../services/blockchain/index.js';
+} from '../../../services/blockchain/index.js';
 
 function createDelayedConfirmationProvider(confirmOnAttempt, resolvedStatus = true) {
     let attempts = 0;
@@ -60,8 +60,8 @@ test.describe('Blockchain transaction services', () => {
         expect(result.status).toEqual({ status: 'confirmed' });
     });
 
-    test('TRY service works with setStatusProvider helper', async () => {
-        const service = new TryTransactionService({
+    test('TRON service works with setStatusProvider helper', async () => {
+        const service = new TronTransactionService({
             recommendedConfirmationTimeMs: 150,
             pollIntervalMs: 40,
         });
@@ -70,7 +70,7 @@ test.describe('Blockchain transaction services', () => {
             return context.attempts >= 2 ? { confirmed: true } : { confirmed: false };
         });
 
-        const result = await service.waitForConfirmation('try-tx');
+        const result = await service.waitForConfirmation('tron-tx');
 
         expect(result.confirmed).toBe(true);
         expect(result.attempts).toBe(2);

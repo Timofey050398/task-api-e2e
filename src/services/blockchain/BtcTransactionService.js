@@ -19,7 +19,16 @@ import {
 } from './btc/config.js';
 import { ONE_MINUTE_MS } from './btc/constants.js';
 
-const ECPair = ECPairFactory(ecc);
+let defaultECPair = null;
+
+function resolveECPair(pairFactory = ECPairFactory, eccLib = ecc) {
+    if (defaultECPair) {
+        return defaultECPair;
+    }
+
+    defaultECPair = pairFactory(eccLib);
+    return defaultECPair;
+}
 
 export class BtcTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
@@ -60,6 +69,7 @@ export class BtcTransactionService extends BlockchainTransactionService {
         });
 
         this.currency = Currencies.BTC;
+        this.ecpair = options.ecpair ?? resolveECPair();
 
         if (!this.statusProvider) {
             this.setStatusProvider(
@@ -96,7 +106,7 @@ export class BtcTransactionService extends BlockchainTransactionService {
                 throw new Error('BTC_ADDRESS or BTC_PRIVATE_KEY missing from .env');
             }
 
-            const keyPair = ECPair.fromWIF(privateKeyWIF, this.bitcoinNetwork);
+            const keyPair = this.ecpair.fromWIF(privateKeyWIF, this.bitcoinNetwork);
 
             const utxos = await this.utxoProvider(senderAddress);
             if (!utxos.length) throw new Error('No UTXO found for sender address');

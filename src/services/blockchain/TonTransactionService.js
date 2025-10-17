@@ -64,22 +64,32 @@ export class TonTransactionService extends BlockchainTransactionService {
         if (!toAddress) throw new Error('toAddress is required');
         if (!amount) throw new Error('amount is required');
 
-        const contract = this.getWalletContract();
-        const seqno = await contract.methods.seqno().call();
-        const amountNano = normalizeTonAmount(amount);
+        this.logger?.info?.('[TON] Sending native transaction', { toAddress, amount });
 
-        const result = await contract.methods.transfer({
-            secretKey: this.secretKey,
-            toAddress,
-            amount: amountNano,
-            seqno,
-            sendMode: 3,
-        }).send();
+        try {
+            const contract = this.getWalletContract();
+            const seqno = await contract.methods.seqno().call();
+            const amountNano = normalizeTonAmount(amount);
 
-        return {
-            txHash: result?.id?.hash ?? 'unknown',
-            feeTon: estimateTonFee(amountNano),
-        };
+            const result = await contract.methods.transfer({
+                secretKey: this.secretKey,
+                toAddress,
+                amount: amountNano,
+                seqno,
+                sendMode: 3,
+            }).send();
+
+            const response = {
+                txHash: result?.id?.hash ?? 'unknown',
+                feeTon: estimateTonFee(amountNano),
+            };
+
+            this.logger?.info?.('[TON] Native transaction sent', response);
+            return response;
+        } catch (error) {
+            this.logger?.error?.('[TON] Failed to send native transaction', error);
+            throw error;
+        }
     }
 
     /** Отправка Jetton (токена TON) */
@@ -88,46 +98,60 @@ export class TonTransactionService extends BlockchainTransactionService {
         if (currency.network !== Network.TON) throw new Error('Only TON network supported');
         if (!currency.tokenContract) throw new Error('Token contract missing in currency');
 
-        const contract = this.getWalletContract();
-        const seqno = await contract.methods.seqno().call();
-
-        const tonWeb = this.tonWeb;
-        const { Address, BN, toNano } = TonWeb.utils;
-
-        const { token } = tonWeb;
-        if (!token?.ft?.JettonWallet) {
-            throw new Error('JettonWallet class not found in tonWeb.token.ft');
-        }
-
-        const jettonWallet = new token.ft.JettonWallet(tonWeb.provider, {
-            address: new Address(currency.tokenContract),
+        this.logger?.info?.('[TON] Sending token transaction', {
+            toAddress,
+            amount,
+            tokenContract: currency.tokenContract,
         });
 
+        try {
+            const contract = this.getWalletContract();
+            const seqno = await contract.methods.seqno().call();
 
-        const responseAddr = contract.address;
-        const amountUnits = scaleByDecimals(amount, currency.decimal ?? 9);
-        // noinspection JSUnresolvedFunction
-        const payload = await jettonWallet.methods.transfer({
-            amount: new BN(amountUnits),
-            toAddress: new Address(toAddress),
-            responseAddress: responseAddr,
-            forwardAmount: new BN(toNano('0.02').toString()), // отправляем немного TON на исполнение
-            forwardPayload: null,
-        }).getData();
+            const tonWeb = this.tonWeb;
+            const { Address, BN, toNano } = TonWeb.utils;
 
-        const result = await contract.methods.transfer({
-            secretKey: this.secretKey,
-            toAddress: jettonWallet.address.toString(true, true, true),
-            amount: toNano('0.05'), // комиссия в TON
-            seqno,
-            payload,
-            sendMode: 3,
-        }).send();
+            const { token } = tonWeb;
+            if (!token?.ft?.JettonWallet) {
+                throw new Error('JettonWallet class not found in tonWeb.token.ft');
+            }
 
-        return {
-            txHash: result?.id?.hash ?? 'unknown',
-            feeTon: '0.05',
-        };
+            const jettonWallet = new token.ft.JettonWallet(tonWeb.provider, {
+                address: new Address(currency.tokenContract),
+            });
+
+
+            const responseAddr = contract.address;
+            const amountUnits = scaleByDecimals(amount, currency.decimal ?? 9);
+            // noinspection JSUnresolvedFunction
+            const payload = await jettonWallet.methods.transfer({
+                amount: new BN(amountUnits),
+                toAddress: new Address(toAddress),
+                responseAddress: responseAddr,
+                forwardAmount: new BN(toNano('0.02').toString()), // отправляем немного TON на исполнение
+                forwardPayload: null,
+            }).getData();
+
+            const result = await contract.methods.transfer({
+                secretKey: this.secretKey,
+                toAddress: jettonWallet.address.toString(true, true, true),
+                amount: toNano('0.05'), // комиссия в TON
+                seqno,
+                payload,
+                sendMode: 3,
+            }).send();
+
+            const response = {
+                txHash: result?.id?.hash ?? 'unknown',
+                feeTon: '0.05',
+            };
+
+            this.logger?.info?.('[TON] Token transaction sent', response);
+            return response;
+        } catch (error) {
+            this.logger?.error?.('[TON] Failed to send token transaction', error);
+            throw error;
+        }
     }
 }
 

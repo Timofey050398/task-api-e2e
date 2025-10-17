@@ -7,6 +7,7 @@ const ONE_MINUTE = 60 * 1000;
 
 export class TonTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
+        const networkName = resolveTonNetworkName();
         super({
             ...options,
             network: 'TON',
@@ -14,13 +15,18 @@ export class TonTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 5 * 1000,
         });
 
+        this.tonNetworkName = networkName;
+
         this.apiKey = process.env.TON_API_KEY;
         this.publicKey = process.env.TON_WALLET_PUBLIC_KEY;
         this.secretKey = process.env.TON_WALLET_PRIVATE_KEY;
 
+        const endpointCandidate = options.endpoint ?? process.env.TON_API_ENDPOINT;
+        this.tonEndpoint = resolveTonEndpoint(endpointCandidate, networkName);
+
         this.tonWeb =
             options.tonWeb ??
-            createTonWeb(this.apiKey);
+            createTonWeb({ apiKey: this.apiKey, endpoint: this.tonEndpoint });
 
         this.defaultWalletVersion = options.defaultWalletVersion ?? 'v4R2';
         this.defaultWorkchain = options.defaultWorkchain ?? 0;
@@ -174,8 +180,7 @@ export class TonTransactionService extends BlockchainTransactionService {
 }
 
 /** --- helpers --- */
-function createTonWeb(apiKey) {
-    const endpoint = 'https://toncenter.com/api/v2/jsonRPC';
+function createTonWeb({ apiKey, endpoint }) {
     const provider = new TonWeb.HttpProvider(endpoint, { apiKey });
     return new TonWeb(provider);
 }
@@ -196,6 +201,24 @@ function scaleByDecimals(value, decimals) {
     const paddedFraction = (fractionalPart + '0'.repeat(decimals)).slice(0, decimals);
     const normalized = `${integerPart}${paddedFraction}`.replace(/^0+(\d)/, '$1');
     return normalized === '' ? '0' : normalized;
+}
+
+function resolveTonNetworkName() {
+    return (process.env.TON_NETWORK ?? 'mainnet').toLowerCase();
+}
+
+function resolveTonEndpoint(customEndpoint, networkName) {
+    if (customEndpoint) {
+        return customEndpoint.replace(/\/$/, '');
+    }
+
+    switch (networkName) {
+        case 'testnet':
+        case 'sandbox':
+            return 'https://testnet.toncenter.com/api/v2/jsonRPC';
+        default:
+            return 'https://toncenter.com/api/v2/jsonRPC';
+    }
 }
 
 function normalizeSeqno(value) {

@@ -8,6 +8,7 @@ const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) return
 
 export class EthTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
+        const networkName = resolveEthNetworkName();
         super({
             ...options,
             network: 'ETH',
@@ -15,10 +16,12 @@ export class EthTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 15 * 1000,
         });
 
-        const providerCandidate = options.provider ?? process.env.ETH_RPC_URL;
+        this.ethNetworkName = networkName;
+
+        const providerCandidate = options.provider ?? resolveEthProviderCandidate(networkName);
         this.provider = resolveProvider(providerCandidate);
         if (!this.provider) {
-            throw new Error('ETH provider is not configured. Set ETH_RPC_URL or pass provider via options.');
+            throw new Error('ETH provider is not configured. Set ETH_RPC_URL, configure ETH_NETWORK, or pass provider via options.');
         }
 
         const signerCandidate = options.signer ?? process.env.ETH_PRIVATE_KEY;
@@ -174,4 +177,25 @@ function resolveSigner(signer, provider) {
     if (!signer) return null;
     if (typeof signer === 'string') return new Wallet(signer, provider);
     return signer;
+}
+
+function resolveEthNetworkName() {
+    return (process.env.ETH_NETWORK ?? 'mainnet').toLowerCase();
+}
+
+function resolveEthProviderCandidate(networkName) {
+    if (process.env.ETH_RPC_URL) {
+        return process.env.ETH_RPC_URL;
+    }
+
+    switch (networkName) {
+        case 'sepolia':
+            return 'https://rpc.sepolia.org';
+        case 'goerli':
+            return 'https://rpc.ankr.com/eth_goerli';
+        case 'holesky':
+            return 'https://ethereum-holesky.publicnode.com';
+        default:
+            return null;
+    }
 }

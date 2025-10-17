@@ -4,10 +4,8 @@ import {
     TonTransactionService,
     TronTransactionService,
 } from "./index";
-import {Currencies, CurrencyKey, CurrencyType} from "../../model/Currency";
+import {Currency, CurrencyType} from "../../model/Currency";
 import {Network} from "../../model/Network";
-
-type Currency = typeof Currencies[CurrencyKey];
 
 type BlockchainService = {
     network: Network;

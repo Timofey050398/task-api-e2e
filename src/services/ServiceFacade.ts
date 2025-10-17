@@ -1,7 +1,6 @@
 import {User} from "../model/User";
 import {LoginService} from "./api/LoginService";
 import {AccountService} from "./api/AccountService";
-import {AccountClient} from "../api/clients/AccountClient";
 import {MailTmService} from "./mail/MailTmService";
 
 export class ServiceFacade {
@@ -11,7 +10,7 @@ export class ServiceFacade {
 
     constructor(user: User) {
         this.login = new LoginService(user);
-        this.account = new AccountClient(user);
+        this.account = new AccountService(user);
         this.mail = new MailTmService(user);
     }
 }

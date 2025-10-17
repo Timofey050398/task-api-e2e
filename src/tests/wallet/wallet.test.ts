@@ -1,7 +1,8 @@
 import { test } from "../../fixtures/userPool";
 import {assertCode, assertEquals} from "../../utils/allureUtils";
-import {Currencies, CurrencyType} from "../../model/Currency";
+import {Currencies, Currency, CurrencyType, getMinAmount} from "../../model/Currency";
 import {generateRandomName} from "../../utils/randomGenerator";
+import {AccountService} from "../../services/api/AccountService";
 
 test.describe('wallet flow', () => {
     test.setTimeout(60000);
@@ -38,4 +39,15 @@ test.describe('wallet flow', () => {
         });
     }
 
+    for (const currency of Object.values(Currencies).filter(
+        (c): c is Currency => c.type === CurrencyType.CRYPTO
+    )) {
+        test(`should create ${currency.type} deposit`, async ({ user }) => {
+            await new AccountService(user).depositCrypto(
+                getMinAmount(currency),
+                currency,
+                undefined
+            );
+        });
+    }
 });

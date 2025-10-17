@@ -19,4 +19,22 @@ export const Currencies = {
     TON: { id: 2130, type: CurrencyType.CRYPTO, network: Network.TON },
 } as const;
 
+export function getMinAmount(currency: typeof Currencies[keyof typeof Currencies]) {
+    if (currency.type === CurrencyType.FIAT
+    || currency === Currencies.TON || currency === Currencies.TRX) {
+        return 0.01;
+    }
+    if ('tokenContract' in currency) {
+        return 0.000001;
+    }
+    if (currency === Currencies.BTC){
+        return 0.00000001;
+    }
+    if (currency === Currencies.ETH){
+        return 0.0000000001;
+    }
+    throw new Error(`Unsupported currency type ${currency.type}`);
+}
+
+export type Currency = (typeof Currencies)[CurrencyKey];
 export type CurrencyKey = keyof typeof Currencies;

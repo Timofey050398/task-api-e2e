@@ -16,16 +16,29 @@ export class BtcTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 30 * 1000,
         });
 
-        const networkName = options.bitcoinNetwork ?? "mainnet";
+        const networkName = resolveBitcoinNetworkName(options.bitcoinNetwork);
         this.bitcoinNetwork = resolveBitcoinNetwork(networkName);
         this.bitcoinNetworkName = networkName;
-        this.blockstreamApiBaseUrl = resolveBlockstreamApiBaseUrl(options.blockstreamApiBaseUrl, this.bitcoinNetworkName);
+
+        const blockstreamBaseUrlCandidate =
+            options.blockstreamApiBaseUrl ?? process.env.BTC_BLOCKSTREAM_API_BASE_URL;
+        this.blockstreamApiBaseUrl = resolveBlockstreamApiBaseUrl(
+            blockstreamBaseUrlCandidate,
+            this.bitcoinNetworkName,
+        );
+
+        const mempoolBaseUrlCandidate = options.mempoolApiBaseUrl ?? process.env.BTC_MEMPOOL_API_BASE_URL;
+        this.mempoolApiBaseUrl = resolveMempoolApiBaseUrl(mempoolBaseUrlCandidate, this.bitcoinNetworkName);
 
         this.utxoProvider = options.utxoProvider ?? createBlockstreamUtxoProvider({
             logger: this.logger,
             apiBaseUrl: this.blockstreamApiBaseUrl,
         });
-        this.feeRateProvider = options.feeRateProvider ?? createMempoolFeeRateProvider({ logger: this.logger });
+        this.feeRateProvider =
+            options.feeRateProvider ?? createMempoolFeeRateProvider({
+                logger: this.logger,
+                apiBaseUrl: this.mempoolApiBaseUrl,
+            });
         this.broadcastProvider = options.broadcastProvider ?? createBlockstreamBroadcastProvider({
             apiBaseUrl: this.blockstreamApiBaseUrl,
             logger: this.logger,
@@ -144,10 +157,11 @@ function createBlockstreamUtxoProvider({ logger, timeoutMs = 10_000, retries = 3
 }
 
 /** Получение средней комиссии */
-function createMempoolFeeRateProvider({ logger, timeoutMs = 10_000, retries = 3 } = {}) {
+function createMempoolFeeRateProvider({ logger, timeoutMs = 10_000, retries = 3, apiBaseUrl } = {}) {
     return async () => {
         return retry(async () => {
-            const res = await fetchWithTimeout("https://mempool.space/api/v1/fees/recommended", { timeoutMs });
+            const base = (apiBaseUrl ?? "https://mempool.space/api").replace(/\/$/, "");
+            const res = await fetchWithTimeout(`${base}/v1/fees/recommended`, { timeoutMs });
             if (!res.ok) throw new Error(`Fee rate fetch failed: ${res.status}`);
             const data = await res.json();
             return data.fastestFee || 15; // сатоши за байт
@@ -277,11 +291,30 @@ async function retry(fn, { retries = 3, fallback = null, logger = console }) {
     return typeof fallback === "function" ? fallback() : fallback;
 }
 
+function resolveBitcoinNetworkName(optionsNetwork) {
+    const envNetwork = process.env.BTC_NETWORK?.trim();
+    return (envNetwork || optionsNetwork || "mainnet").toLowerCase();
+}
+
 function resolveBitcoinNetwork(name = "mainnet") {
     switch (name) {
         case "testnet": return bitcoin.networks.testnet;
         case "regtest": return bitcoin.networks.regtest ?? bitcoin.networks.testnet;
         default: return bitcoin.networks.bitcoin;
+    }
+}
+
+function resolveMempoolApiBaseUrl(customUrl, networkName = "mainnet") {
+    if (customUrl) {
+        return customUrl.replace(/\/$/, "");
+    }
+
+    switch (networkName) {
+        case "testnet":
+        case "regtest":
+            return "https://mempool.space/testnet/api";
+        default:
+            return "https://mempool.space/api";
     }
 }
 

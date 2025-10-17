@@ -7,6 +7,7 @@ const ONE_MINUTE = 60 * 1000;
 
 export class TronTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
+        const networkName = resolveTronNetworkName();
         super({
             ...options,
             network: 'TRON',
@@ -14,9 +15,14 @@ export class TronTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 10 * 1000,
         });
 
-        const fullNode = process.env.TRON_FULL_NODE ?? 'https://api.trongrid.io';
-        const solidityNode = process.env.TRON_SOLIDITY_NODE ?? fullNode;
-        const eventServer = process.env.TRON_EVENT_SERVER ?? fullNode;
+        this.tronNetworkName = networkName;
+
+        const { fullNode, solidityNode, eventServer } = resolveTronNodes({
+            networkName,
+            fullNode: process.env.TRON_FULL_NODE,
+            solidityNode: process.env.TRON_SOLIDITY_NODE,
+            eventServer: process.env.TRON_EVENT_SERVER,
+        });
         const privateKey = process.env.TRON_PRIVATE_KEY;
 
         if (!privateKey) {
@@ -189,4 +195,46 @@ function normalizeTransactionId(tx) {
     if (tx?.txid) return tx.txid;
     if (tx?.transaction?.txID) return tx.transaction.txID;
     throw new Error('Unable to determine TRON transaction id');
+}
+
+function resolveTronNetworkName() {
+    return (process.env.TRON_NETWORK ?? 'mainnet').toLowerCase();
+}
+
+function resolveTronNodes({ networkName, fullNode, solidityNode, eventServer }) {
+    const defaults = getDefaultTronNodes(networkName);
+
+    const resolvedFullNode = (fullNode ?? defaults.fullNode).replace(/\/$/, '');
+    const resolvedSolidityNode = (solidityNode ?? defaults.solidityNode ?? resolvedFullNode).replace(/\/$/, '');
+    const resolvedEventServer = (eventServer ?? defaults.eventServer ?? resolvedFullNode).replace(/\/$/, '');
+
+    return {
+        fullNode: resolvedFullNode,
+        solidityNode: resolvedSolidityNode,
+        eventServer: resolvedEventServer,
+    };
+}
+
+function getDefaultTronNodes(networkName) {
+    switch (networkName) {
+        case 'shasta':
+        case 'testnet':
+            return {
+                fullNode: 'https://api.shasta.trongrid.io',
+                solidityNode: 'https://api.shasta.trongrid.io',
+                eventServer: 'https://api.shasta.trongrid.io',
+            };
+        case 'nile':
+            return {
+                fullNode: 'https://nile.trongrid.io',
+                solidityNode: 'https://nile.trongrid.io',
+                eventServer: 'https://nile.trongrid.io',
+            };
+        default:
+            return {
+                fullNode: 'https://api.trongrid.io',
+                solidityNode: 'https://api.trongrid.io',
+                eventServer: 'https://api.trongrid.io',
+            };
+    }
 }

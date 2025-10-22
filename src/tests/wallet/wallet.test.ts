@@ -42,7 +42,7 @@ test.describe('wallet flow', () => {
     for (const currency of Object.values(Currencies).filter(
         (c): c is Currency => c.type === CurrencyType.CRYPTO
     )) {
-        test(`should create ${currency.type} deposit`, async ({ user }) => {
+        test(`should create ${currency} deposit`, async ({ user }) => {
             await new AccountService(user).depositCrypto(
                 getMinAmount(currency),
                 currency,

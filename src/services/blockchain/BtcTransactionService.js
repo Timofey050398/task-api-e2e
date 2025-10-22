@@ -30,6 +30,15 @@ function resolveECPair(pairFactory = ECPairFactory, eccLib = ecc) {
     return defaultECPair;
 }
 
+function deriveNativeSegwitAddress(keyPair, network) {
+    const payment = bitcoin.payments.p2wpkh({
+        pubkey: keyPair.publicKey,
+        network,
+    });
+
+    return payment.address;
+}
+
 export class BtcTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
         super({
@@ -108,10 +117,46 @@ export class BtcTransactionService extends BlockchainTransactionService {
 
             const keyPair = this.ecpair.fromWIF(privateKeyWIF, this.bitcoinNetwork);
 
+            const senderConfig = {
+                senderAddress,
+                network: this.bitcoinNetworkName,
+            };
+            this.logger?.info?.('[BTC] Sender configuration loaded', senderConfig);
+
+            try {
+                bitcoin.address.toOutputScript(senderAddress, this.bitcoinNetwork);
+            } catch (addressError) {
+                throw new Error(
+                    `BTC_ADDRESS ${senderAddress} is invalid for ${this.bitcoinNetworkName}: ${addressError.message}`,
+                );
+            }
+
+            const derivedSegwitAddress = deriveNativeSegwitAddress(keyPair, this.bitcoinNetwork);
+            const isSegwitAddress = senderAddress?.toLowerCase?.().startsWith('bc1')
+                || senderAddress?.toLowerCase?.().startsWith('tb1');
+            if (isSegwitAddress && derivedSegwitAddress && derivedSegwitAddress !== senderAddress) {
+                const mismatchError = new Error(
+                    `Derived address ${derivedSegwitAddress} does not match BTC_ADDRESS ${senderAddress} for ${this.bitcoinNetworkName}`,
+                );
+                this.logger?.error?.('[BTC] Sender address mismatch', {
+                    ...senderConfig,
+                    derivedAddress: derivedSegwitAddress,
+                });
+                throw mismatchError;
+            }
+
             const utxos = await this.utxoProvider(senderAddress);
             if (!utxos.length) throw new Error('No UTXO found for sender address');
 
+            const totalUtxoValue = utxos.reduce((acc, utxo) => acc + (utxo.value ?? 0), 0);
+            this.logger?.info?.('[BTC] Retrieved UTXO set', {
+                count: utxos.length,
+                totalValue: totalUtxoValue,
+            });
+
             const feeRate = await this.feeRateProvider();
+
+            this.logger?.info?.('[BTC] Fee rate resolved', { feeRate });
 
             const {
                 selectedUtxos,

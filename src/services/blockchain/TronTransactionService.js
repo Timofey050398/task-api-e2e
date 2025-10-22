@@ -1,4 +1,5 @@
-import TronWeb from 'tronweb';
+import TronWebModule from 'tronweb';
+const TronWeb = TronWebModule.TronWeb || TronWebModule.default || TronWebModule;
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
 import { Currencies } from '../../model/Currency.js';
 import { Network } from '../../model/Network.js';
@@ -18,14 +19,7 @@ export class TronTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 10 * 1000,
         });
 
-        this.tronNetworkName = networkName;
-
-        const { fullNode, solidityNode, eventServer } = resolveTronNodes({
-            networkName,
-            fullNode: process.env.TRON_FULL_NODE,
-            solidityNode: process.env.TRON_SOLIDITY_NODE,
-            eventServer: process.env.TRON_EVENT_SERVER,
-        });
+        const { fullNode, solidityNode, eventServer } = resolveTronNodes(networkName);
         const privateKey = process.env.TRON_PRIVATE_KEY;
 
         if (!privateKey) {

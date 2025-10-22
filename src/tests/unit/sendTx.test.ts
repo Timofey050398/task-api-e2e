@@ -5,10 +5,9 @@ import {BlockchainServiceFacade} from "../../services/blockchain/BlockchainServi
 
 test.describe('wallet flow', () => {
     const facade = new BlockchainServiceFacade();
-    for (const currency of Object.values(Currencies).filter(
-        (c): c is Currency => c.type === CurrencyType.CRYPTO
-    )) {
-        test(`should create ${currency} deposit`, async ({}) => {
+    for (const [currencyKey, currency] of Object.entries(Currencies)) {
+        if (currency.type !== CurrencyType.CRYPTO) continue;
+        test(`should create ${currencyKey} deposit`, async ({}) => {
             await facade.sendToken(generateRandomAddress(currency),getMinAmount(currency),currency);
         });
     }

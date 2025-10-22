@@ -23,8 +23,6 @@ export class EthTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 15 * 1000,
         });
 
-        this.ethNetworkName = networkName;
-
         const providerCandidate = options.provider ?? resolveEthProviderCandidate(networkName);
         this.provider = resolveProvider(providerCandidate);
         if (!this.provider) {

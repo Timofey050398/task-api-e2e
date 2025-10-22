@@ -23,11 +23,14 @@ export class TonTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 5 * 1000,
         });
 
-        this.tonNetworkName = networkName;
-
+        const { hexToBytes } = TonWeb.utils;
         this.apiKey = process.env.TON_API_KEY;
-        this.publicKey = process.env.TON_WALLET_PUBLIC_KEY;
-        this.secretKey = process.env.TON_WALLET_PRIVATE_KEY;
+        this.publicKey = process.env.TON_WALLET_PUBLIC_KEY_32_HEX
+            ? hexToBytes(process.env.TON_WALLET_PUBLIC_KEY_32_HEX)
+            : undefined;
+        this.secretKey = process.env.TON_WALLET_PRIVATE_KEY
+            ? hexToBytes(process.env.TON_WALLET_PRIVATE_KEY)
+            : undefined;
 
         const endpointCandidate = options.endpoint ?? process.env.TON_API_ENDPOINT;
         this.tonEndpoint = resolveTonEndpoint(endpointCandidate, networkName);
@@ -77,7 +80,13 @@ export class TonTransactionService extends BlockchainTransactionService {
 
         try {
             const contract = this.getWalletContract();
-            const seqnoRaw = await contract.methods.seqno().call();
+            let seqnoRaw = await contract.methods.seqno().call();
+            if (seqnoRaw === null || seqnoRaw === undefined) {
+                this.logger?.info?.('[TON] Wallet not deployed yet, sending deploy transaction...');
+                await contract.deploy(this.secretKey).send();
+                await new Promise(res => setTimeout(res, 5000));
+                seqnoRaw = await contract.methods.seqno().call();
+            }
             const seqno = normalizeSeqno(seqnoRaw);
             const amountNano = normalizeTonAmount(amount);
 

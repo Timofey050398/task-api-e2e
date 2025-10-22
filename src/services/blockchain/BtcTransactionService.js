@@ -1,6 +1,6 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
-import ecc from 'tiny-secp256k1';
+import * as ecc from 'tiny-secp256k1';
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
 import { Currencies } from '../../model/Currency.js';
 import { normalizeBtcAmount } from './btc/amount.js';

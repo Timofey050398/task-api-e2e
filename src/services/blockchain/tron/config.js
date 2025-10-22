@@ -2,12 +2,12 @@ export function resolveTronNetworkName() {
     return (process.env.TRON_NETWORK ?? 'mainnet').toLowerCase();
 }
 
-export function resolveTronNodes({ networkName, fullNode, solidityNode, eventServer }) {
+export function resolveTronNodes(networkName) {
     const defaults = getDefaultTronNodes(networkName);
 
-    const resolvedFullNode = (fullNode ?? defaults.fullNode).replace(/\/$/, '');
-    const resolvedSolidityNode = (solidityNode ?? defaults.solidityNode ?? resolvedFullNode).replace(/\/$/, '');
-    const resolvedEventServer = (eventServer ?? defaults.eventServer ?? resolvedFullNode).replace(/\/$/, '');
+    const resolvedFullNode = defaults.fullNode.replace(/\/$/, '');
+    const resolvedSolidityNode = defaults.solidityNode.replace(/\/$/, '');
+    const resolvedEventServer = defaults.eventServer.replace(/\/$/, '');
 
     return {
         fullNode: resolvedFullNode,

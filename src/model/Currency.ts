@@ -1,5 +1,10 @@
 import {Network} from "./Network";
 import {randomBytes} from "node:crypto";
+import {TronWeb} from "tronweb";
+import * as bitcoin from 'bitcoinjs-lib';
+import {ECPairFactory} from "ecpair";
+import * as ecc from 'tiny-secp256k1';
+import { Buffer } from 'buffer';
 
 export enum CurrencyType {
     CRYPTO = 'crypto',
@@ -23,7 +28,7 @@ export const Currencies = {
 export function getMinAmount(currency: typeof Currencies[keyof typeof Currencies]) {
     if (currency.type === CurrencyType.FIAT
     || currency === Currencies.TON || currency === Currencies.TRX) {
-        return 0.01;
+        return 0.0001;
     }
     if ('tokenContract' in currency) {
         return 0.000001;
@@ -32,7 +37,7 @@ export function getMinAmount(currency: typeof Currencies[keyof typeof Currencies
         return 0.00000001;
     }
     if (currency === Currencies.ETH){
-        return 0.0000000001;
+        return '0.0000000001';
     }
     throw new Error(`Unsupported currency type ${currency.type}`);
 }
@@ -45,11 +50,17 @@ export function generateRandomAddress(currency: Currency): string {
     switch (network) {
         // -------------------- BTC --------------------
         case Network.BTC: {
-            const btcNetwork = process.env.BTC_NETWORK || "mainnet";
-            // Фейковая логика: просто разные префиксы для примера
-            const prefix = btcNetwork === "testnet" ? "tb1q" : "bc1q";
-            const random = randomBytes(20).toString("hex");
-            return `${prefix}${random}`;
+            const ECPair = ECPairFactory(ecc);
+            const btcNetwork = process.env.BTC_NETWORK === 'testnet'
+                ? bitcoin.networks.testnet
+                : bitcoin.networks.bitcoin;
+
+            const keyPair = ECPair.makeRandom({ network: btcNetwork });
+            const { address } = bitcoin.payments.p2wpkh({
+                pubkey: Buffer.from(keyPair.publicKey),
+                network: btcNetwork,
+            });
+            return address!;
         }
 
         // -------------------- ETH --------------------
@@ -61,11 +72,11 @@ export function generateRandomAddress(currency: Currency): string {
 
         // -------------------- TRON --------------------
         case Network.TRON: {
-            // Для TRON адреса начинаются с 'T' на mainnet и с 'T'/'a'/'b' на testnet, в реальности зависит от base58
-            const isMainnet = (process.env.TRON_FULL_NODE || "").includes("trongrid.io");
-            const prefix = isMainnet ? "T" : "a";
-            const random = randomBytes(20).toString("hex").slice(0, 33);
-            return `${prefix}${random}`;
+            const tronWeb = new TronWeb({
+                fullHost: process.env.TRON_FULL_NODE || 'https://api.shasta.trongrid.io',
+            });
+            const account = tronWeb.utils.accounts.generateAccount();
+            return account.address.base58; // ✅ корректный адрес, типа "TQZkD8s4..."
         }
 
         // -------------------- TON --------------------

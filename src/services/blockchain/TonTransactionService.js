@@ -25,12 +25,30 @@ export class TonTransactionService extends BlockchainTransactionService {
 
         const { hexToBytes } = TonWeb.utils;
         this.apiKey = process.env.TON_API_KEY;
-        this.publicKey = process.env.TON_WALLET_PUBLIC_KEY_32_HEX
-            ? hexToBytes(process.env.TON_WALLET_PUBLIC_KEY_32_HEX)
-            : undefined;
-        this.secretKey = process.env.TON_WALLET_PRIVATE_KEY
-            ? hexToBytes(process.env.TON_WALLET_PRIVATE_KEY)
-            : undefined;
+
+        const parseHexKey = (value, { expectedBytes, envName }) => {
+            if (!value) return undefined;
+
+            const bytes = hexToBytes(value);
+            if (bytes.length !== expectedBytes) {
+                throw new Error(
+                    `${envName} must be a hex string representing ${expectedBytes} bytes,` +
+                    ` but ${bytes.length} ${bytes.length === 1 ? 'byte was' : 'bytes were'} provided`,
+                );
+            }
+
+            return bytes;
+        };
+
+        this.publicKey = parseHexKey(process.env.TON_WALLET_PUBLIC_KEY_32_HEX, {
+            expectedBytes: 32,
+            envName: 'TON_WALLET_PUBLIC_KEY_32_HEX',
+        });
+
+        this.secretKey = parseHexKey(process.env.TON_WALLET_PRIVATE_KEY, {
+            expectedBytes: 64,
+            envName: 'TON_WALLET_PRIVATE_KEY',
+        });
 
         const endpointCandidate = options.endpoint ?? process.env.TON_API_ENDPOINT;
         this.tonEndpoint = resolveTonEndpoint(endpointCandidate, networkName);

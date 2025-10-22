@@ -1,4 +1,5 @@
 import {Network} from "./Network";
+import {randomBytes} from "node:crypto";
 
 export enum CurrencyType {
     CRYPTO = 'crypto',
@@ -34,6 +35,50 @@ export function getMinAmount(currency: typeof Currencies[keyof typeof Currencies
         return 0.0000000001;
     }
     throw new Error(`Unsupported currency type ${currency.type}`);
+}
+
+export function generateRandomAddress(currency: Currency): string {
+    if (!('network' in currency)) {
+        throw new Error(`Currency ${currency.id} is not crypto and has no network`);
+    } 
+    const network = currency.network;
+    switch (network) {
+        // -------------------- BTC --------------------
+        case Network.BTC: {
+            const btcNetwork = process.env.BTC_NETWORK || "mainnet";
+            // Фейковая логика: просто разные префиксы для примера
+            const prefix = btcNetwork === "testnet" ? "tb1q" : "bc1q";
+            const random = randomBytes(20).toString("hex");
+            return `${prefix}${random}`;
+        }
+
+        // -------------------- ETH --------------------
+        case Network.ETH: {
+            // Ethereum-адреса одинаковы на mainnet и testnet, но можем учитывать RPC_URL
+            const random = randomBytes(20).toString("hex");
+            return `0x${random}`;
+        }
+
+        // -------------------- TRON --------------------
+        case Network.TRON: {
+            // Для TRON адреса начинаются с 'T' на mainnet и с 'T'/'a'/'b' на testnet, в реальности зависит от base58
+            const isMainnet = (process.env.TRON_FULL_NODE || "").includes("trongrid.io");
+            const prefix = isMainnet ? "T" : "a";
+            const random = randomBytes(20).toString("hex").slice(0, 33);
+            return `${prefix}${random}`;
+        }
+
+        // -------------------- TON --------------------
+        case Network.TON: {
+            // Для TON различия зависят от API, но адрес формата EQ...
+            const random = randomBytes(32).toString("base64url").slice(0, 48);
+            const prefix = process.env.TON_API_KEY ? "EQ" : "kQ"; // EQ — mainnet, kQ — testnet
+            return `${prefix}${random}`;
+        }
+
+        default:
+            throw new Error(`Unsupported network: ${network}`);
+    }
 }
 
 export type Currency = (typeof Currencies)[CurrencyKey];

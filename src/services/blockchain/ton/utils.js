@@ -45,5 +45,5 @@ export function normalizeSeqno(value) {
 export function estimateTonFee() {
     const { fromNano } = TonWeb.utils;
     const baseFeeNano = BigInt(200_000_000); // ~0.2 TON запасом
-    return fromNano(baseFeeNano);
+    return fromNano(baseFeeNano.toString());
 }

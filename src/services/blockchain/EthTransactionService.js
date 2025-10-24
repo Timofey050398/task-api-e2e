@@ -82,10 +82,12 @@ export class EthTransactionService extends BlockchainTransactionService {
             const value = parseUnits(amount.toString(), 'ether');
 
             const { gasPrice } = await this.provider.getFeeData();
+            this.logger?.info?.('[ETH] tx gasPrice', { gasPrice });
             if (!gasPrice) throw new Error('Gas price unavailable from provider');
             const estimate = await this.signer.estimateGas({ to, value });
+            this.logger?.info?.('[ETH] tx estimate', { estimate });
             const fee = gasPrice * estimate;
-
+            this.logger?.info?.('[ETH] tx fee', { fee });
             const tx = await this.signer.sendTransaction({ to, value, gasPrice, gasLimit: estimate });
             const receipt = await tx.wait();
 
@@ -138,6 +140,7 @@ export class EthTransactionService extends BlockchainTransactionService {
             const estimate = await contract.estimateGas.transfer(to, value);
             const fee = gasPrice * estimate;
 
+            this.logger?.info?.('[ETH] tx fee', { gasPrice, fee });
             const tx = await contract.transfer(to, value, { gasPrice, gasLimit: estimate });
             const receipt = await tx.wait();
 

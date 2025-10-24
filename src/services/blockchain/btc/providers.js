@@ -1,4 +1,3 @@
-import * as bitcoin from 'bitcoinjs-lib';
 import { DUST_THRESHOLD } from './constants.js';
 
 export function createBlockstreamUtxoProvider({ logger, timeoutMs = 10_000, retries = 3, apiBaseUrl = 'https://blockstream.info/api' } = {}) {
@@ -43,6 +42,21 @@ export function createBlockstreamBroadcastProvider({ apiBaseUrl = 'https://block
         }
         const txid = await res.text();
         return { txid };
+    };
+}
+
+export function createBlockstreamTxProvider({ apiBaseUrl = 'https://blockstream.info/api', logger, timeoutMs = 10_000, retries = 3 } = {}) {
+    const baseUrl = apiBaseUrl.replace(/\/$/, '');
+
+    return async (txid) => {
+        return retry(
+            async () => {
+                const res = await fetchWithTimeout(`${baseUrl}/tx/${txid}/hex`, { timeoutMs });
+                if (!res.ok) throw new Error(`Transaction fetch failed: ${res.status}`);
+                return res.text();
+            },
+            { retries, logger },
+        );
     };
 }
 
@@ -154,7 +168,7 @@ export function estimateFee({ inputCount, outputCount, feeRate }) {
     return Math.ceil(estimatedVBytes * feeRate);
 }
 
-export function selectUtxosForAmount({ utxos, sendValue, feeRate, senderAddress, bitcoinNetwork }) {
+export function selectUtxosForAmount({ utxos, sendValue, feeRate }) {
     const sorted = [...utxos].sort((a, b) => b.value - a.value);
     const selectedUtxos = [];
     let total = 0;
@@ -163,10 +177,7 @@ export function selectUtxosForAmount({ utxos, sendValue, feeRate, senderAddress,
         selectedUtxos.push({
             hash: utxo.txid,
             index: utxo.vout,
-            witnessUtxo: {
-                script: bitcoin.address.toOutputScript(senderAddress, bitcoinNetwork),
-                value: utxo.value,
-            },
+            value: utxo.value,
         });
         total += utxo.value;
 

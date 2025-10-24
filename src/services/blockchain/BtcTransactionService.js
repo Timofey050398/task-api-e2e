@@ -32,7 +32,9 @@ function resolveECPair(pairFactory = ECPairFactory, eccLib = ecc) {
 
 function deriveNativeSegwitAddress(keyPair, network) {
     const payment = bitcoin.payments.p2wpkh({
-        pubkey: keyPair.publicKey,
+        pubkey: Buffer.isBuffer(keyPair.publicKey)
+            ? keyPair.publicKey
+            : Buffer.from(keyPair.publicKey),
         network,
     });
 

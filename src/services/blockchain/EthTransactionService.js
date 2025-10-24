@@ -9,7 +9,6 @@ import {
     resolveSigner,
     resolveTokenContract,
 } from './eth/config.js';
-import {USDC_ABI} from "../../abi/usdcAbi";
 
 const ONE_MINUTE = 60 * 1000;
 const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
@@ -136,12 +135,9 @@ export class EthTransactionService extends BlockchainTransactionService {
             const contract = await this.createTokenContract(tokenAddress);
             const value = parseUnits(amount.toString(), decimals);
 
-            this.logger?.info?.('[DEBUG] contract address:', contract.target);
-            this.logger?.info?.('[DEBUG] available functions:', Object.keys(contract.functions));
-
             const { gasPrice } = await this.provider.getFeeData();
             if (!gasPrice) throw new Error('Gas price unavailable from provider');
-            const estimate = await contract.estimateGas.transfer(to, value);
+            const estimate = await contract.getFunction('transfer').estimateGas(to, value);
             const fee = gasPrice * estimate;
 
             this.logger?.info?.('[ETH] tx fee', { gasPrice, fee });

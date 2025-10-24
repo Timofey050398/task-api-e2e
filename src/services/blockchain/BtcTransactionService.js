@@ -31,6 +31,59 @@ function resolveECPair(pairFactory = ECPairFactory, eccLib = ecc) {
     return defaultECPair;
 }
 
+/**
+ * bitcoinjs-lib expects ECPair signers to expose Buffer-based keys/signatures,
+ * while ecpair@3 returns Uint8Array values. Normalize the pair to Buffers so
+ * PSBT signing works reliably across environments.
+ */
+function ensureBufferKeyPair(keyPair) {
+    if (!keyPair) {
+        return keyPair;
+    }
+
+    const normalized = Object.create(Object.getPrototypeOf(keyPair));
+    Object.assign(normalized, keyPair);
+
+    const toBuffer = (value) => (Buffer.isBuffer(value) ? value : Buffer.from(value));
+
+    if (normalized.publicKey) {
+        Object.defineProperty(normalized, 'publicKey', {
+            value: toBuffer(normalized.publicKey),
+            writable: false,
+            enumerable: true,
+        });
+    }
+
+    if (normalized.privateKey) {
+        Object.defineProperty(normalized, 'privateKey', {
+            value: toBuffer(normalized.privateKey),
+            writable: false,
+            enumerable: true,
+        });
+    }
+
+    const originalSign = typeof keyPair.sign === 'function' ? keyPair.sign.bind(keyPair) : null;
+    if (originalSign) {
+        Object.defineProperty(normalized, 'sign', {
+            value: (hash, lowR) => {
+                const signature = originalSign(hash, lowR);
+                return toBuffer(signature);
+            },
+        });
+    }
+
+    const originalSignSchnorr = typeof keyPair.signSchnorr === 'function'
+        ? keyPair.signSchnorr.bind(keyPair)
+        : null;
+    if (originalSignSchnorr) {
+        Object.defineProperty(normalized, 'signSchnorr', {
+            value: (hash) => toBuffer(originalSignSchnorr(hash)),
+        });
+    }
+
+    return normalized;
+}
+
 function deriveNativeSegwitAddress(keyPair, network) {
     const payment = bitcoin.payments.p2wpkh({
         pubkey: Buffer.isBuffer(keyPair.publicKey)
@@ -123,7 +176,7 @@ export class BtcTransactionService extends BlockchainTransactionService {
                 throw new Error('BTC_ADDRESS or BTC_PRIVATE_KEY missing from .env');
             }
 
-            const keyPair = this.ecpair.fromWIF(privateKeyWIF, this.bitcoinNetwork);
+            const keyPair = ensureBufferKeyPair(this.ecpair.fromWIF(privateKeyWIF, this.bitcoinNetwork));
 
             const senderConfig = {
                 senderAddress,

@@ -7,6 +7,7 @@ export function createTronStatusProvider(getTronWeb, { logger } = {}) {
 
         try {
             const info = await tronWeb.trx.getTransactionInfo(txId);
+            logger.info(info);
             if (info && Object.keys(info).length > 0) {
                 return {
                     confirmed: isSuccessfulTronReceipt(info),

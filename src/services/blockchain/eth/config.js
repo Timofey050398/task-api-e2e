@@ -1,4 +1,4 @@
-import { Contract, JsonRpcProvider, Wallet } from 'ethers';
+import {Contract, JsonRpcProvider, Wallet} from 'ethers';
 
 export function resolveEthNetworkName() {
     return (process.env.ETH_NETWORK ?? 'mainnet').toLowerCase();
@@ -11,7 +11,7 @@ export function resolveEthProviderCandidate(networkName) {
 
     switch (networkName) {
         case 'sepolia':
-            return 'https://rpc2.sepolia.org';
+            return `https://sepolia.infura.io/v3/${process.env.ETH_INFURA_PROJECT_ID}`;
         case 'goerli':
             return 'https://rpc.ankr.com/eth_goerli';
         case 'holesky':
@@ -33,6 +33,34 @@ export function resolveSigner(signer, provider) {
     return signer;
 }
 
-export function createTokenContract(tokenAddress, abi, signer) {
-    return new Contract(tokenAddress, abi, signer);
+export async function resolveTokenContract(tokenAddress, abi, providerOrSigner) {
+    const proxyAbi = [
+        "function implementation() view returns (address)",
+        "function getImplementation() view returns (address)", // иногда используется это имя
+    ];
+
+    let implementationAddress;
+
+    try {
+        const proxy = new Contract(tokenAddress, proxyAbi, providerOrSigner);
+
+        implementationAddress = await proxy.implementation().catch(async () => {
+            try {
+                return await proxy.getImplementation();
+            } catch {
+                return null;
+            }
+        });
+
+    } catch (err) {
+        implementationAddress = null;
+    }
+
+    if (implementationAddress) {
+        console.log(`🔍 Token ${tokenAddress} is a Proxy → implementation = ${implementationAddress}`);
+        return new Contract(implementationAddress, abi, providerOrSigner);
+    }
+
+    console.log(`✅ Token ${tokenAddress} is a regular ERC-20`);
+    return new Contract(tokenAddress, abi, providerOrSigner);
 }

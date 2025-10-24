@@ -83,6 +83,7 @@ export class BlockchainTransactionService {
 
         while (Date.now() - startedAt < timeoutMs) {
             attempts += 1;
+            this.logger?.info?.(`[${this.network}] attempt # ${attempts}`);
             lastStatus = await statusProvider(transactionId, {
                 attempts,
                 elapsedMs: Date.now() - startedAt,

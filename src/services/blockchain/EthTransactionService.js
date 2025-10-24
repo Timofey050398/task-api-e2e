@@ -1,14 +1,15 @@
-import { parseUnits, formatUnits } from 'ethers';
+import {parseUnits, formatUnits, Contract} from 'ethers';
 import { BlockchainTransactionService } from './BlockchainTransactionService.js';
 import { Network } from '../../model/Network.js';
 import { Currencies } from '../../model/Currency.js';
 import {
-    createTokenContract,
     resolveEthNetworkName,
     resolveEthProviderCandidate,
     resolveProvider,
     resolveSigner,
+    resolveTokenContract,
 } from './eth/config.js';
+import {USDC_ABI} from "../../abi/usdcAbi";
 
 const ONE_MINUTE = 60 * 1000;
 const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
@@ -53,7 +54,7 @@ export class EthTransactionService extends BlockchainTransactionService {
         this.tokenAbi = options.tokenAbi ?? DEFAULT_ERC20_ABI;
         this.createTokenContract =
             options.createTokenContract ??
-            ((tokenAddress) => createTokenContract(tokenAddress, this.tokenAbi, this.signer));
+            ((tokenAddress) => resolveTokenContract(tokenAddress, this.tokenAbi, this.signer));
     }
 
     async send(to, amount, currency) {
@@ -132,8 +133,11 @@ export class EthTransactionService extends BlockchainTransactionService {
         try {
             const tokenAddress = currency.tokenContract;
             const decimals = currency.decimal;
-            const contract = this.createTokenContract(tokenAddress);
+            const contract = await this.createTokenContract(tokenAddress);
             const value = parseUnits(amount.toString(), decimals);
+
+            this.logger?.info?.('[DEBUG] contract address:', contract.target);
+            this.logger?.info?.('[DEBUG] available functions:', Object.keys(contract.functions));
 
             const { gasPrice } = await this.provider.getFeeData();
             if (!gasPrice) throw new Error('Gas price unavailable from provider');

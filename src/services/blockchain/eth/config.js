@@ -11,7 +11,7 @@ export function resolveEthProviderCandidate(networkName) {
 
     switch (networkName) {
         case 'sepolia':
-            return 'https://rpc.sepolia.org';
+            return 'https://rpc2.sepolia.org';
         case 'goerli':
             return 'https://rpc.ankr.com/eth_goerli';
         case 'holesky':

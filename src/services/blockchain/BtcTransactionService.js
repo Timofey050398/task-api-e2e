@@ -6,6 +6,7 @@ import { Currencies } from '../../model/Currency.js';
 import { normalizeBtcAmount } from './btc/amount.js';
 import {
     createBlockstreamBroadcastProvider,
+    createBlockstreamTxProvider,
     createBlockstreamStatusProvider,
     createBlockstreamUtxoProvider,
     createMempoolFeeRateProvider,
@@ -39,6 +40,65 @@ function deriveNativeSegwitAddress(keyPair, network) {
     });
 
     return payment.address;
+}
+
+const SEGWIT_SCRIPT_TYPES = new Set([
+    'p2wpkh',
+    'v0_p2wpkh',
+    'v1_p2wpkh',
+    'p2wsh',
+    'v0_p2wsh',
+    'v1_p2wsh',
+    'p2tr',
+    'v1_p2tr',
+]);
+
+function normalizeHexString(value) {
+    if (!value) return '';
+    return value.trim().replace(/^0x/i, '').replace(/\s+/g, '');
+}
+
+function bufferFromHex(hexValue) {
+    const normalized = normalizeHexString(hexValue);
+    if (!normalized) {
+        return null;
+    }
+
+    if (normalized.length % 2 !== 0) {
+        throw new Error(`Invalid hex string length for value: ${hexValue}`);
+    }
+
+    return Buffer.from(normalized, 'hex');
+}
+
+function safeBufferFromHex(hexValue) {
+    try {
+        return bufferFromHex(hexValue);
+    } catch (error) {
+        return null;
+    }
+}
+
+function isLikelySegwitScript(scriptBuffer) {
+    if (!scriptBuffer || !scriptBuffer.length) {
+        return false;
+    }
+
+    const versionOpcode = scriptBuffer[0];
+    return versionOpcode === 0x00 || versionOpcode === 0x51;
+}
+
+function shouldUseWitnessUtxo({ scriptType, scriptPubKey }, isSegwitAddress) {
+    if (isSegwitAddress) {
+        return true;
+    }
+
+    if (scriptType && SEGWIT_SCRIPT_TYPES.has(scriptType.toLowerCase())) {
+        return true;
+    }
+
+    const scriptBuffer = safeBufferFromHex(scriptPubKey);
+    return isLikelySegwitScript(scriptBuffer);
 }
 
 export class BtcTransactionService extends BlockchainTransactionService {
@@ -75,6 +135,11 @@ export class BtcTransactionService extends BlockchainTransactionService {
         });
 
         this.broadcastProvider = options.broadcastProvider ?? createBlockstreamBroadcastProvider({
+            apiBaseUrl: this.blockstreamApiBaseUrl,
+            logger: this.logger,
+        });
+
+        this.txProvider = options.txProvider ?? createBlockstreamTxProvider({
             apiBaseUrl: this.blockstreamApiBaseUrl,
             logger: this.logger,
         });
@@ -168,8 +233,6 @@ export class BtcTransactionService extends BlockchainTransactionService {
                 utxos,
                 sendValue: sendValueSatoshis,
                 feeRate,
-                senderAddress,
-                bitcoinNetwork: this.bitcoinNetwork,
             });
 
             const outputs = [
@@ -180,7 +243,57 @@ export class BtcTransactionService extends BlockchainTransactionService {
             }
 
             const psbt = new bitcoin.Psbt({ network: this.bitcoinNetwork });
-            selectedUtxos.forEach((input) => psbt.addInput(input));
+            const senderOutputScript = bitcoin.address.toOutputScript(senderAddress, this.bitcoinNetwork);
+
+            const txHexCache = new Map();
+            const psbtInputs = await Promise.all(
+                selectedUtxos.map(async (utxo) => {
+                    const treatAsSegwit = shouldUseWitnessUtxo(utxo, isSegwitAddress);
+                    const utxoScript = safeBufferFromHex(utxo.scriptPubKey) ?? senderOutputScript;
+                    const baseInput = {
+                        hash: utxo.hash,
+                        index: utxo.index,
+                    };
+
+                    if (treatAsSegwit) {
+                        baseInput.witnessUtxo = {
+                            script: utxoScript,
+                            value: utxo.value,
+                        };
+                        return baseInput;
+                    }
+
+                    if (!this.txProvider) {
+                        throw new Error('No BTC transaction provider configured for non-SegWit inputs');
+                    }
+
+                    let rawTxHex = txHexCache.get(utxo.hash);
+                    if (!rawTxHex) {
+                        rawTxHex = await this.txProvider(utxo.hash);
+                    }
+
+                    if (!rawTxHex) {
+                        throw new Error(`Unable to fetch raw transaction for input ${utxo.hash}:${utxo.index}`);
+                    }
+
+                    const normalizedRawHex = normalizeHexString(rawTxHex);
+                    if (!normalizedRawHex) {
+                        throw new Error(`Raw transaction hex for input ${utxo.hash}:${utxo.index} is empty`);
+                    }
+
+                    if (normalizedRawHex.length % 2 !== 0) {
+                        throw new Error(
+                            `Raw transaction hex for input ${utxo.hash}:${utxo.index} has invalid length`,
+                        );
+                    }
+
+                    txHexCache.set(utxo.hash, normalizedRawHex);
+                    baseInput.nonWitnessUtxo = Buffer.from(normalizedRawHex, 'hex');
+                    return baseInput;
+                }),
+            );
+
+            psbtInputs.forEach((input) => psbt.addInput(input));
             outputs.forEach((o) => psbt.addOutput(o));
             psbt.signAllInputs(keyPair);
             psbt.finalizeAllInputs();

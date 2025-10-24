@@ -1,5 +1,6 @@
 import {Network} from "./Network";
 import {randomBytes} from "node:crypto";
+import TonWeb from "tonweb";
 import {TronWeb} from "tronweb";
 import * as bitcoin from 'bitcoinjs-lib';
 import {ECPairFactory} from "ecpair";
@@ -81,10 +82,11 @@ export function generateRandomAddress(currency: Currency): string {
 
         // -------------------- TON --------------------
         case Network.TON: {
-            // Для TON различия зависят от API, но адрес формата EQ...
-            const random = randomBytes(32).toString("base64url").slice(0, 48);
-            const prefix = process.env.TON_API_KEY ? "EQ" : "kQ"; // EQ — mainnet, kQ — testnet
-            return `${prefix}${random}`;
+            const { Address } = TonWeb.utils;
+            const randomHash = randomBytes(32).toString("hex");
+            const address = new Address(`0:${randomHash}`);
+            const isMainnet = Boolean(process.env.TON_API_KEY);
+            return address.toString(true, true, true, !isMainnet);
         }
 
         default:

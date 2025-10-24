@@ -104,7 +104,7 @@ export class TronTransactionService extends BlockchainTransactionService {
             const scaledAmount = scaleDecimals(amount, decimals);
 
             const tx = await contract.transfer(to, scaledAmount).send({
-                feeLimit: 5_000_000,
+                feeLimit: 30_000_000,
                 shouldPollResponse: false,
             });
 

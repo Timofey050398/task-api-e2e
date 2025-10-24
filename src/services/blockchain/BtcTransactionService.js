@@ -6,6 +6,7 @@ import { Currencies } from '../../model/Currency.js';
 import { normalizeBtcAmount } from './btc/amount.js';
 import {
     createBlockstreamBroadcastProvider,
+    createBlockstreamTxProvider,
     createBlockstreamStatusProvider,
     createBlockstreamUtxoProvider,
     createMempoolFeeRateProvider,
@@ -75,6 +76,11 @@ export class BtcTransactionService extends BlockchainTransactionService {
         });
 
         this.broadcastProvider = options.broadcastProvider ?? createBlockstreamBroadcastProvider({
+            apiBaseUrl: this.blockstreamApiBaseUrl,
+            logger: this.logger,
+        });
+
+        this.txProvider = options.txProvider ?? createBlockstreamTxProvider({
             apiBaseUrl: this.blockstreamApiBaseUrl,
             logger: this.logger,
         });
@@ -168,8 +174,6 @@ export class BtcTransactionService extends BlockchainTransactionService {
                 utxos,
                 sendValue: sendValueSatoshis,
                 feeRate,
-                senderAddress,
-                bitcoinNetwork: this.bitcoinNetwork,
             });
 
             const outputs = [
@@ -180,7 +184,44 @@ export class BtcTransactionService extends BlockchainTransactionService {
             }
 
             const psbt = new bitcoin.Psbt({ network: this.bitcoinNetwork });
-            selectedUtxos.forEach((input) => psbt.addInput(input));
+            const senderOutputScript = bitcoin.address.toOutputScript(senderAddress, this.bitcoinNetwork);
+
+            const txHexCache = new Map();
+            const psbtInputs = await Promise.all(
+                selectedUtxos.map(async (input) => {
+                    if (isSegwitAddress) {
+                        return {
+                            hash: input.hash,
+                            index: input.index,
+                            witnessUtxo: {
+                                script: senderOutputScript,
+                                value: input.value,
+                            },
+                        };
+                    }
+
+                    if (!this.txProvider) {
+                        throw new Error('No BTC transaction provider configured for non-SegWit inputs');
+                    }
+
+                    let rawTxHex = txHexCache.get(input.hash);
+                    if (!rawTxHex) {
+                        rawTxHex = await this.txProvider(input.hash);
+                        txHexCache.set(input.hash, rawTxHex);
+                    }
+                    if (!rawTxHex) {
+                        throw new Error(`Unable to fetch raw transaction for input ${input.hash}:${input.index}`);
+                    }
+
+                    return {
+                        hash: input.hash,
+                        index: input.index,
+                        nonWitnessUtxo: Buffer.from(rawTxHex, 'hex'),
+                    };
+                }),
+            );
+
+            psbtInputs.forEach((input) => psbt.addInput(input));
             outputs.forEach((o) => psbt.addOutput(o));
             psbt.signAllInputs(keyPair);
             psbt.finalizeAllInputs();

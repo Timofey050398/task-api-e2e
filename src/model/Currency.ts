@@ -35,7 +35,7 @@ export function getMinAmount(currency: typeof Currencies[keyof typeof Currencies
         return 0.000001;
     }
     if (currency === Currencies.BTC){
-        return 0.00000001;
+        return 0.000003;
     }
     if (currency === Currencies.ETH){
         return '0.0000000001';

@@ -32,35 +32,3 @@ export function resolveSigner(signer, provider) {
     if (typeof signer === 'string') return new Wallet(signer, provider);
     return signer;
 }
-
-export async function resolveTokenContract(tokenAddress, abi, providerOrSigner) {
-    const proxyAbi = [
-        "function implementation() view returns (address)",
-        "function getImplementation() view returns (address)", // иногда используется это имя
-    ];
-
-    let implementationAddress;
-
-    try {
-        const proxy = new Contract(tokenAddress, proxyAbi, providerOrSigner);
-
-        implementationAddress = await proxy.implementation().catch(async () => {
-            try {
-                return await proxy.getImplementation();
-            } catch {
-                return null;
-            }
-        });
-
-    } catch (err) {
-        implementationAddress = null;
-    }
-
-    if (implementationAddress) {
-        console.log(`🔍 Token ${tokenAddress} is a Proxy → implementation = ${implementationAddress}`);
-        return new Contract(implementationAddress, abi, providerOrSigner);
-    }
-
-    console.log(`✅ Token ${tokenAddress} is a regular ERC-20`);
-    return new Contract(tokenAddress, abi, providerOrSigner);
-}

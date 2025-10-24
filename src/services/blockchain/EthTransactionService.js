@@ -7,7 +7,6 @@ import {
     resolveEthProviderCandidate,
     resolveProvider,
     resolveSigner,
-    resolveTokenContract,
 } from './eth/config.js';
 
 const ONE_MINUTE = 60 * 1000;
@@ -53,7 +52,7 @@ export class EthTransactionService extends BlockchainTransactionService {
         this.tokenAbi = options.tokenAbi ?? DEFAULT_ERC20_ABI;
         this.createTokenContract =
             options.createTokenContract ??
-            ((tokenAddress) => resolveTokenContract(tokenAddress, this.tokenAbi, this.signer));
+            ((tokenAddress) => new Contract(tokenAddress, this.tokenAbi, this.signer));
     }
 
     async send(to, amount, currency) {

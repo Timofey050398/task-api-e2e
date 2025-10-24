@@ -15,8 +15,8 @@ test.describe.parallel('wallet flow', async () => {
 test.describe('BTC deposit', () => {
     const facade = new BlockchainServiceFacade();
 
-    test(`should create erc-20 deposit `, async ({}) => {
-        const currency = Currencies.USDT_ERC20;
+    test(`should create trc-20 deposit `, async ({}) => {
+        const currency = Currencies.USDT_TRC20;
         await facade.sendToken(generateRandomAddress(currency),getMinAmount(currency),currency);
     });
 });

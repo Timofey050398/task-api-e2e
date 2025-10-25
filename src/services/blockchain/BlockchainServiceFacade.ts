@@ -1,23 +1,8 @@
-import {
-    BtcTransactionService,
-    EthTransactionService,
-    TonTransactionService,
-    TronTransactionService,
-} from "./index";
+import {BtcTransactionService, EthTransactionService, TonTransactionService, TronTransactionService,} from "./index";
 import {Currency, CurrencyType} from "../../model/Currency";
 import {Network} from "../../model/Network";
-
-type BlockchainService = {
-    network: Network;
-    send: (to: string, value: string | number | bigint, currency: Currency) => Promise<TxResult>;
-};
-
-export interface TxResult {
-    currency: Currency;
-    txHash: string;
-    sentAmount: string | number | bigint;
-    fee: string | number | bigint;
-}
+import {TxResult} from "../../model/TxResult";
+import {BlockchainService} from "../../model/BlockchainService";
 
 type ServiceRegistry = Record<Network, BlockchainService>;
 

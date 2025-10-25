@@ -1,13 +1,15 @@
 import {AccountClient} from "../../api/clients/AccountClient";
 import {BlockchainServiceFacade} from "../blockchain/BlockchainServiceFacade";
-import {generateRandomName} from "../../utils/randomGenerator";
+import {generateRandomName, getRandomClient} from "../../utils/randomGenerator";
 import {Currencies, CurrencyType} from "../../model/Currency";
 import {step} from "allure-js-commons";
+import {CashClient} from "../../api/clients/CashClient";
 
 
-export class AccountService {
+export class WalletService {
     constructor(user) {
         this.accountClient = new AccountClient(user, false);
+        this.cashClient = new CashClient(user, false);
         this.blockchain = new BlockchainServiceFacade();
         this.logger = console;
     }
@@ -25,7 +27,7 @@ export class AccountService {
 
             const wallet = await this.findOrCreateWallet(currency, walletId);
             const txResult = await this.blockchain.sendToken(wallet.address, amount, currency);
-            return this.waitForDepositConfirm(currency, wallet, txResult);
+            return {wallet, txResult};
         });
     }
 
@@ -92,6 +94,115 @@ export class AccountService {
 
             throw error;
         });
+    }
+
+    async createCashInvoice(
+        amount,
+        countryName = "Россия",
+        currency = Currencies.RUB,
+        day = new Date().toISOString().split('T')[0],
+        client = getRandomClient(),
+        comment = "",
+        companion = {name:"",surname:"", patronymic:""},
+        locationOption =
+        {
+            cityOption : {first: true},
+            officeOption : {first: false}
+        },
+        multiplyOf = 100
+    ) {
+        if (!(day instanceof Date) || isNaN(day.getTime())) {
+            if (day instanceof String ) {
+                day = new Date(day);
+            } else {
+                throw new Error("Incorrect date format");
+            }
+        }
+        const dateTimestamp = day.getTime();
+        const {country, city, office} = await this.#findLocation(countryName, locationOption.cityOption, locationOption.officeOption);
+
+        const slot = await this.#getFreeSlot(office, day);
+
+        const wallet = await this.findOrCreateWallet(currency);
+        const accountId = wallet?.accountID;
+
+        if (!accountId) {
+            throw new Error("Incorrect account ID");
+        }
+
+        const response = await this.cashClient.createCashInvoice(
+            accountId,
+            amount,
+            city.cityId,
+            client,
+            comment,
+            companion,
+            country.countryId,
+            currency.id,
+            dateTimestamp + slot,
+            multiplyOf,
+            office.id
+        );
+
+        return response?.data;
+    }
+
+    async cancelCashInvoice(orderId){
+        const response = await this.cashClient.cancelCashInvoice(orderId);
+        return response?.data;
+    }
+
+    async getHistoryEntryByTxId(txId){
+        const response = await this.accountClient.getHistory();
+        return response?.data?.order?.find(order => order.txHash === txId);
+    }
+
+    async #getFreeSlot(office, day) {
+        const slotsResponse = await this.cashClient.getInvoiceSlots(day.getTime(), office.id);
+        const slot = slotsResponse.data?.slots[0]?.time;
+        if (!slot) {
+            throw new Error(`Could not find slot at office ${office.address} at date ${day}`);
+        }
+        const slotTimestamp = typeof slot === "number" ? slot : Number(slot);
+        if (isNaN(slotTimestamp)) {
+            throw new Error(`Invalid slot format: ${JSON.stringify(slot)}`);
+        }
+        return slotTimestamp;
+    }
+
+    async #findLocation(
+        countryName,
+        cityOption,
+        officeOption
+    ) {
+        const countriesAndCurrenciesResponse = await this.accountClient.getSupportedCountriesAndCurrencies();
+
+        const country = countriesAndCurrenciesResponse.data?.countries.find(country => country.countryName === countryName);
+        if (!country) {
+            throw new Error(`Could not find country with name ${countryName}`);
+        }
+        let city;
+        if (cityOption.first) {
+            city = country.cities[0];
+        } else {
+            city = country.cities.find(city => city.cityName === cityOption.name);
+        }
+        if (!city) {
+            throw new Error(`Could not find city at country ${countryName}`);
+        }
+
+        const officesResponse = await this.cashClient.getCashOffices(city.cityId, country.countryId);
+        let office;
+        if (officeOption.first) {
+            office = officesResponse.data?.offices[0];
+        } else {
+            office = officesResponse.data?.offices.find(office => office.address === officeOption.address);
+        }
+
+        if (!office) {
+            throw new Error("Could not find office");
+        }
+        return {country, city, office};
     }
 
     async findOrCreateWallet(currency, walletId) {

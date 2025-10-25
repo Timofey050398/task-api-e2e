@@ -1,8 +1,8 @@
 import { test } from "../../fixtures/userPool";
-import {assertCode, assertEquals} from "../../utils/allureUtils";
+import {assertCode, assertEquals, assertExist} from "../../utils/allureUtils";
 import {Currencies, Currency, CurrencyType, getMinAmount} from "../../model/Currency";
 import {generateRandomName} from "../../utils/randomGenerator";
-import {AccountService} from "../../services/api/AccountService";
+import {WalletService} from "../../services/api/WalletService";
 
 test.describe('wallet flow', () => {
     test.setTimeout(60000);
@@ -19,11 +19,11 @@ test.describe('wallet flow', () => {
                 }
 
                 await assertCode(response.status, 200);
-                const accountsReponse = await api.account.getAccounts();
-                await assertCode(accountsReponse.status, 200);
+                const accountsResponse = await api.account.getAccounts();
+                await assertCode(accountsResponse.status, 200);
 
                 walletId = response.data?.walletID;
-                const wallets  = accountsReponse.data?.ungroupedWallets ?? [];
+                const wallets  = accountsResponse.data?.ungroupedWallets ?? [];
                 const wallet = wallets.find((w: any) => w.id === walletId);
                 await assertEquals(wallet.name,name);
                 await assertEquals(wallet.currencyID, currency.id);
@@ -39,15 +39,29 @@ test.describe('wallet flow', () => {
         });
     }
 
-    for (const currency of Object.values(Currencies).filter(
-        (c): c is Currency => c.type === CurrencyType.CRYPTO
-    )) {
-        test(`should create ${currency} deposit`, async ({ user }) => {
-            await new AccountService(user).depositCrypto(
+    for (const [currencyKey, currency] of Object.entries(Currencies)) {
+        if (currency.type !== CurrencyType.CRYPTO) continue;
+        test(`should create ${currencyKey} deposit`, async ({ walletService }) => {
+            let depositDto = await walletService.depositCrypto(
                 getMinAmount(currency),
                 currency,
                 undefined
             );
+
+            depositDto = await walletService.waitForDepositConfirm(
+                currency,
+                depositDto.wallet,
+                depositDto.txResult
+            );
+
+            const historyEntry = await  walletService.getHistoryEntryByTxId(depositDto.txResult.txHash);
+
+            await assertExist(historyEntry,`Транзакция ${depositDto.txResult} не отобразилась в истории`)
         });
     }
+
+    test('should create and cancel cash invoice', async ({ walletService }) => {
+       const data = await walletService.createCashInvoice("10000");
+       await walletService.cancelCashInvoice(data.orderID);
+    });
 });

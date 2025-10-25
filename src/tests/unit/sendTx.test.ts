@@ -6,7 +6,8 @@ test.describe('wallet flow', () => {
     for (const [currencyKey, currency] of Object.entries(Currencies)) {
         if (currency.type !== CurrencyType.CRYPTO) continue;
         test(`should create ${currencyKey} deposit`, async ({blockchain}) => {
-            await blockchain.sendToken(generateRandomAddress(currency),getMinAmount(currency),currency);
+            const txResult = await blockchain.sendToken(generateRandomAddress(currency),getMinAmount(currency),currency);
+            console.log(`txResult: ${txResult}`);
         });
     }
 });

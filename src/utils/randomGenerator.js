@@ -161,13 +161,40 @@ export function generateRandomName(prefix = 'wallet', opts = {}) {
     return `${prefix}_${adj}-${animal}-${num}`;
 }
 
+export function getRandomClient() {
+    const surnames = [
+        "Иванов", "Петров", "Сидоров", "Смирнов", "Кузнецов",
+        "Попов", "Соколов", "Лебедев", "Новиков", "Фёдоров"
+    ];
+
+    const names = [
+        "Алексей", "Дмитрий", "Иван", "Максим", "Николай",
+        "Сергей", "Егор", "Павел", "Андрей", "Константин"
+    ];
+
+    const patronymics = [
+        "Алексеевич", "Дмитриевич", "Иванович", "Максимович", "Николаевич",
+        "Сергеевич", "Егорович", "Павлович", "Андреевич", "Константинович"
+    ];
+
+    const random = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    return {
+        surname: random(surnames),
+        name: random(names),
+        patronymic: random(patronymics)
+    };
+}
+
+
 // CommonJS fallback (если в проекте require)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     generatePassword,
     generateEmail,
     generateCredentials,
-    generateRandomName
+    generateRandomName,
+    getRandomClient
   };
 
 

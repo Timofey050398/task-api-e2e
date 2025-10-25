@@ -10,6 +10,8 @@ export function resolveEthProviderCandidate(networkName) {
     }
 
     switch (networkName) {
+        case 'mainnet':
+            return `https://mainnet.infura.io/v3/${process.env.ETH_INFURA_PROJECT_ID}`;
         case 'sepolia':
             return `https://sepolia.infura.io/v3/${process.env.ETH_INFURA_PROJECT_ID}`;
         case 'goerli':

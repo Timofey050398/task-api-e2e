@@ -32,4 +32,12 @@ export class AccountClient extends BaseClient {
     async getAccounts() {
         return await this.post("/accounts/", {});
     }
+
+    async getHistory(limit = 20, offset = 0, types = []) {
+        return await this.post("/tx/all", {limit, offset, types});
+    }
+
+    async getSupportedCountriesAndCurrencies(){
+        return await this.get("/client/balance_localization", {});
+    }
 }

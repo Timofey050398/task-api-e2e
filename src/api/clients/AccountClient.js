@@ -1,4 +1,5 @@
 import {BaseClient} from "./core/BaseClient";
+
 export class AccountClient extends BaseClient {
     constructor(user, processErrors = true) {
         super(user, processErrors);

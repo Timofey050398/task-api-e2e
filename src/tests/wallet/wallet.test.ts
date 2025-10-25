@@ -1,39 +1,31 @@
 import { test } from "../../fixtures/userPool";
-import {assertCode, assertEquals, assertExist} from "../../utils/allureUtils";
-import {Currencies, Currency, CurrencyType, getMinAmount} from "../../model/Currency";
+import {assertEquals, assertExist} from "../../utils/allureUtils";
+import {Currencies, CurrencyType, getMinAmount} from "../../model/Currency";
 import {generateRandomName} from "../../utils/randomGenerator";
-import {WalletService} from "../../services/api/WalletService";
 
 test.describe('wallet flow', () => {
-    test.setTimeout(60000);
-    const name = generateRandomName();
     for (const [key, currency] of Object.entries(Currencies)) {
-        test(`should can create and delete ${currency.type} wallet (${key})`, async ({ api }) => {
+        test(`should can create and delete ${currency.type} wallet (${key})`, async ({ walletService }) => {
+            const name = generateRandomName();
             let walletId: string | undefined;
             try {
-                let response;
-                if (currency.type === CurrencyType.CRYPTO) {
-                    response = await api.account.createCryptoWallet(currency.id, 1, name);
-                } else {
-                    response = await api.account.createFiatWallet(currency.id, name);
-                }
+                //Создаем кошелек
+                const walletData = await walletService.createWallet(currency,name);
+                walletId = walletData?.walletID;
 
-                await assertCode(response.status, 200);
-                const accountsResponse = await api.account.getAccounts();
-                await assertCode(accountsResponse.status, 200);
+                //Получаем dto кошелька
+                const wallet = await walletService.getWalletById(walletId!);
 
-                walletId = response.data?.walletID;
-                const wallets  = accountsResponse.data?.ungroupedWallets ?? [];
-                const wallet = wallets.find((w: any) => w.id === walletId);
+                //Проверяем кошелек
                 await assertEquals(wallet.name,name);
                 await assertEquals(wallet.currencyID, currency.id);
                 if (currency.type === CurrencyType.CRYPTO) {
-                    await assertEquals(wallet.address, response.data?.address);
+                    await assertEquals(wallet.address, walletData?.address!);
                 }
             } finally {
+                //Удаляем созданный кошелёк
                 if (walletId) {
-                    const response = await api.account.deleteWallet(walletId);
-                    await assertCode(response.status, 200);
+                    await walletService.deleteWallet(walletId);
                 }
             }
         });

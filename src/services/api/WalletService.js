@@ -223,14 +223,7 @@ export class WalletService {
             let wallet = await this.getWalletByCurrencyId(currency.id);
 
             if (!wallet) {
-                if (currency.type === CurrencyType.CRYPTO) {
-                    await this.accountClient.createCryptoWallet(currency.id, 1, generateRandomName());
-                } else if (currency.type === CurrencyType.FIAT) {
-                    await this.accountClient.createFiatWallet(currency.id, generateRandomName());
-                } else {
-                    throw new Error("Unsupported currency type");
-                }
-
+                await this.createWallet(currency, generateRandomName());
                 wallet = await this.getWalletByCurrencyId(currency.id);
             }
 
@@ -242,6 +235,18 @@ export class WalletService {
         });
     }
 
+    async createWallet(currency, name) {
+        let response;
+        if (currency.type === CurrencyType.CRYPTO) {
+            response = await this.accountClient.createCryptoWallet(currency.id, 1, name);
+        } else if (currency.type === CurrencyType.FIAT) {
+            response = await this.accountClient.createFiatWallet(currency.id, name);
+        } else {
+            throw new Error("Unsupported currency type");
+        }
+        return response?.data;
+    }
+
     async getWalletById(walletId) {
         if (!walletId) {
             return undefined;
@@ -249,6 +254,11 @@ export class WalletService {
 
         const wallets = await this.#loadWallets();
         return wallets.find((wallet) => wallet.id === walletId);
+    }
+
+    async deleteWallet(walletId) {
+        const response = await this.accountClient.deleteWallet(walletId);
+        return response?.data;
     }
 
     async getWalletByCurrencyId(currencyId) {

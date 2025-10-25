@@ -1,5 +1,4 @@
 import {BaseClient} from "./core/BaseClient";
-import {Currencies} from "../../model/Currency";
 
 export class CashClient extends BaseClient {
     constructor(user, processErrors = true) {

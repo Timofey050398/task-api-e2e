@@ -6,6 +6,15 @@ import {TxResult} from "../../model/TxResult";
 export class WalletService {
     constructor(user: User);
 
+    createWallet(
+        currency: Currency,
+        name: string
+    ) : Promise<any>;
+
+    getWalletById(id: string) : Promise<any | undefined>;
+
+    deleteWallet(id: string) : Promise<any>;
+
     depositCrypto(
         amount: number | string | bigInt,
         currency: Currency,

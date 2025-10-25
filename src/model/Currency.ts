@@ -1,11 +1,4 @@
 import {Network} from "./Network";
-import {randomBytes} from "node:crypto";
-import TonWeb from "tonweb";
-import {TronWeb} from "tronweb";
-import * as bitcoin from 'bitcoinjs-lib';
-import {ECPairFactory} from "ecpair";
-import * as ecc from 'tiny-secp256k1';
-import { Buffer } from 'buffer';
 
 export enum CurrencyType {
     CRYPTO = 'crypto',
@@ -45,57 +38,6 @@ export function getMinAmount(currency: Currency) {
     }
 
     throw new Error(`Unsupported currency type ${currency.type}`);
-}
-
-export function generateRandomAddress(currency: Currency): string {
-    if (!('network' in currency)) {
-        throw new Error(`Currency ${currency.id} is not crypto and has no network`);
-    } 
-    const network = currency.network;
-    switch (network) {
-        // -------------------- BTC --------------------
-        case Network.BTC: {
-            const ECPair = ECPairFactory(ecc);
-            const btcNetwork = process.env.BTC_NETWORK === 'testnet'
-                ? bitcoin.networks.testnet
-                : bitcoin.networks.bitcoin;
-
-            const keyPair = ECPair.makeRandom({ network: btcNetwork });
-            const { address } = bitcoin.payments.p2wpkh({
-                pubkey: Buffer.from(keyPair.publicKey),
-                network: btcNetwork,
-            });
-            return address!;
-        }
-
-        // -------------------- ETH --------------------
-        case Network.ETH: {
-            // Ethereum-адреса одинаковы на mainnet и testnet, но можем учитывать RPC_URL
-            const random = randomBytes(20).toString("hex");
-            return `0x${random}`;
-        }
-
-        // -------------------- TRON --------------------
-        case Network.TRON: {
-            const tronWeb = new TronWeb({
-                fullHost: process.env.TRON_FULL_NODE || 'https://api.shasta.trongrid.io',
-            });
-            const account = tronWeb.utils.accounts.generateAccount();
-            return account.address.base58; // ✅ корректный адрес, типа "TQZkD8s4..."
-        }
-
-        // -------------------- TON --------------------
-        case Network.TON: {
-            const { Address } = TonWeb.utils;
-            const randomHash = randomBytes(32).toString("hex");
-            const address = new Address(`0:${randomHash}`);
-            const isMainnet = Boolean(process.env.TON_API_KEY);
-            return address.toString(true, true, true, !isMainnet);
-        }
-
-        default:
-            throw new Error(`Unsupported network: ${network}`);
-    }
 }
 
 export type Currency = (typeof Currencies)[CurrencyKey];

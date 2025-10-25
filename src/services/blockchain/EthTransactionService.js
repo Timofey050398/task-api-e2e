@@ -8,6 +8,7 @@ import {
     resolveProvider,
     resolveSigner,
 } from './eth/config.js';
+import {randomBytes} from "node:crypto";
 
 const ONE_MINUTE = 60 * 1000;
 const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
@@ -53,6 +54,10 @@ export class EthTransactionService extends BlockchainTransactionService {
         this.createTokenContract =
             options.createTokenContract ??
             ((tokenAddress) => new Contract(tokenAddress, this.tokenAbi, this.signer));
+    }
+
+    async generateRandomAddress() {
+        return `0x${randomBytes(20).toString("hex")}`;
     }
 
     async send(to, amount, currency) {

@@ -19,6 +19,7 @@ import {
     resolveMempoolApiBaseUrl,
 } from './btc/config.js';
 import { ONE_MINUTE_MS } from './btc/constants.js';
+import {Buffer} from "buffer";
 
 let defaultECPair = null;
 
@@ -149,6 +150,20 @@ export class BtcTransactionService extends BlockchainTransactionService {
                 }),
             );
         }
+    }
+
+    async generateRandomAddress() {
+        const ECPair = ECPairFactory(ecc);
+        const btcNetwork = process.env.BTC_NETWORK === 'testnet'
+            ? bitcoin.networks.testnet
+            : bitcoin.networks.bitcoin;
+
+        const keyPair = ECPair.makeRandom({ network: btcNetwork });
+        const { address } = bitcoin.payments.p2wpkh({
+            pubkey: Buffer.from(keyPair.publicKey),
+            network: btcNetwork,
+        });
+        return address;
     }
 
     async send(to, value, currency = this.currency) {

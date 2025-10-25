@@ -12,6 +12,7 @@ import {
 } from './ton/utils.js';
 import { createTonSeqnoStatusProvider } from './ton/providers.js';
 import { ONE_MINUTE_MS } from './ton/constants.js';
+import {randomBytes} from "node:crypto";
 
 export class TonTransactionService extends BlockchainTransactionService {
     constructor(options = {}) {
@@ -60,6 +61,14 @@ export class TonTransactionService extends BlockchainTransactionService {
         this.defaultWalletVersion = options.defaultWalletVersion ?? 'v4R2';
         this.defaultWorkchain = options.defaultWorkchain ?? 0;
         this.currency = Currencies.TON;
+    }
+
+    async generateRandomAddress() {
+        const { Address } = TonWeb.utils;
+        const randomHash = randomBytes(32).toString("hex");
+        const address = new Address(`0:${randomHash}`);
+        const isMainnet = Boolean(process.env.TON_API_KEY);
+        return address.toString(true, true, true, !isMainnet);
     }
 
     async send(toAddress, amount, currency) {

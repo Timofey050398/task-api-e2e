@@ -49,4 +49,20 @@ export class BlockchainServiceFacade {
 
         return service.send(to, value, currency);
     }
+
+    async generateRandomAddress(currency: Currency): Promise<string> {
+        if (currency.type === CurrencyType.FIAT) {
+            throw new Error("Fiat currencies are not supported");
+        }
+
+        if (!currency.network) {
+            throw new Error("Currency does not specify a blockchain network");
+        }
+        const service = this.services[currency.network];
+
+        if (!service) {
+            throw new Error(`Unsupported network: ${currency.network}`);
+        }
+        return service.generateRandomAddress();
+    }
 }

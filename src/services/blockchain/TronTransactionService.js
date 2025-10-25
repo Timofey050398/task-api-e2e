@@ -34,6 +34,14 @@ export class TronTransactionService extends BlockchainTransactionService {
         this.setStatusProvider(statusProvider);
     }
 
+    async generateRandomAddress() {
+        const tronWeb = new TronWeb({
+            fullHost: process.env.TRON_FULL_NODE || 'https://api.shasta.trongrid.io',
+        });
+        const account = tronWeb.utils.accounts.generateAccount();
+        return account.address.base58;
+    }
+
     async send(to, amount, currency) {
         if (!currency) {
             throw new Error('Currency required');

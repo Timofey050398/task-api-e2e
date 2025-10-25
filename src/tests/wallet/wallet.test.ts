@@ -17,10 +17,10 @@ test.describe('wallet flow', () => {
                 const wallet = await walletService.getWalletById(walletId!);
 
                 //Проверяем кошелек
-                await assertEquals(wallet.name,name);
-                await assertEquals(wallet.currencyID, currency.id);
+                await assertEquals(wallet!.name,name);
+                await assertEquals(wallet!.currencyID, currency.id);
                 if (currency.type === CurrencyType.CRYPTO) {
-                    await assertEquals(wallet.address, walletData?.address!);
+                    await assertEquals(wallet!.address, walletData?.address!);
                 }
             } finally {
                 //Удаляем созданный кошелёк
@@ -36,8 +36,7 @@ test.describe('wallet flow', () => {
         test(`should create ${currencyKey} deposit`, async ({ walletService }) => {
             let depositDto = await walletService.depositCrypto(
                 getMinAmount(currency),
-                currency,
-                undefined
+                currency
             );
 
             depositDto = await walletService.waitForDepositConfirm(

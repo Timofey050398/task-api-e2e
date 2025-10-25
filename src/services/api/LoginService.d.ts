@@ -20,7 +20,11 @@ export class LoginService {
 
     pin: string;
 
+    //Логин пользователем
     login(): Promise<LoginResult>;
 
-    changePassword(): Promise<void>;
+    //Поменять пароль
+    changePassword(
+        newPassword?: string,
+    ): Promise<void>;
 }

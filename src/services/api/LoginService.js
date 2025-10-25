@@ -27,13 +27,13 @@ export class LoginService {
         });
     }
 
-    async changePassword() {
+    async changePassword(newPassword = this.user.password) {
         return await step(`🔐 change password to user ${this.user.login}`, async () => {
-            return await this.#changePassword();
+            return await this.#changePassword(newPassword);
         });
     }
 
-    async #changePassword(newPassword = this.user.password) {
+    async #changePassword(newPassword) {
         const login = this.user.login;
         await this.mailService.init();
 

@@ -30,7 +30,7 @@ test.describe('change password flow', () => {
             await assertEquals(response.data.message, LOGIN_OR_MAIL_NOT_EXIST, 'error message ');
         });
     });
-    test('should successfully change password', async ({ loginService  }) => {
+    test('should successfully change password', async ({ loginService }) => {
         await loginService.changePassword();
     });
     test('should get error when code wrong', async ({ user, api }) => {

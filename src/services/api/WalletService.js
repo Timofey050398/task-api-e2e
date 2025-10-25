@@ -25,7 +25,7 @@ export class WalletService {
                 throw new Error("Fiat currency is not supported");
             }
 
-            const wallet = await this.findOrCreateWallet(currency, walletId);
+            const wallet = await this.#findOrCreateWallet(currency, walletId);
             const txResult = await this.blockchain.sendToken(wallet.address, amount, currency);
             return {wallet, txResult};
         });
@@ -43,7 +43,7 @@ export class WalletService {
 
             this.logger?.info?.(
                 `[${currencyLabel}] Waiting for confirmation`,
-                { txHash, timeoutMs, pollIntervalMs, expectedBalance: formatAmount(expectedBalance) },
+                { txHash, timeoutMs, pollIntervalMs, expectedBalance: expectedBalance.value.toString() },
             );
 
             let attempts = 0;
@@ -73,14 +73,14 @@ export class WalletService {
                     }
                 }
 
-                await sleep(pollIntervalMs);
+                await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
             }
 
             const error = new Error(`Transaction ${txHash} on ${currencyLabel} was not deposited within ${timeoutMs}ms`);
             error.transactionId = txHash;
             error.elapsedMs = Date.now() - startedAt;
             error.attempts = attempts;
-            error.expectedBalance = formatAmount(expectedBalance);
+            error.expectedBalance = expectedBalance.value.toString();
 
             this.logger?.error?.(
                 `[${currencyLabel}] deposit confirmation timeout`,
@@ -123,7 +123,7 @@ export class WalletService {
 
         const slot = await this.#getFreeSlot(office, day);
 
-        const wallet = await this.findOrCreateWallet(currency);
+        const wallet = await this.#findOrCreateWallet(currency);
         const accountId = wallet?.accountID;
 
         if (!accountId) {
@@ -205,7 +205,7 @@ export class WalletService {
         return {country, city, office};
     }
 
-    async findOrCreateWallet(currency, walletId) {
+    async #findOrCreateWallet(currency, walletId) {
         const currencyLabel = resolveCurrencyLabel(currency);
         return await step(`find or create wallet for currency ${currencyLabel}`, async () => {
             if (walletId) {
@@ -275,10 +275,6 @@ export class WalletService {
         return response?.data?.ungroupedWallets ?? [];
     }
 
-}
-
-async function sleep(ms) {
-    return await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function resolveCurrencyLabel(currency, wallet) {
@@ -374,8 +370,4 @@ function compareAmounts(left, right) {
     }
 
     return diff > 0 ? 1 : -1;
-}
-
-function formatAmount(amount) {
-    return amount.value.toString();
 }

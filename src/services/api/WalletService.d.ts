@@ -2,30 +2,31 @@ import {User} from "../../model/User";
 import {Currency} from "../../model/Currency";
 import {DepositDto} from "../../model/DepositDto";
 import {TxResult} from "../../model/TxResult";
+import {Wallet} from "../../model/Wallet";
 
 export class WalletService {
     constructor(user: User);
 
+    //создать кошелек
     createWallet(
         currency: Currency,
         name: string
     ) : Promise<any>;
 
-    getWalletById(id: string) : Promise<any | undefined>;
+    //получить кошелек по id
+    getWalletById(id: string) : Promise<Wallet | undefined>;
 
+    //удалить кошелек по id
     deleteWallet(id: string) : Promise<any>;
 
+    //сделать депозит криптовалюты
     depositCrypto(
         amount: number | string | bigInt,
         currency: Currency,
-        walletId: string | number | undefined
+        walletId?: string | number
     ): Promise<DepositDto>;
 
-    findOrCreateWallet(
-        currency: Currency,
-        walletId: string | number | undefined
-    ) : Promise<any>;
-
+    //дождаться появления депозита на платформе
     waitForDepositConfirm(
         currency: Currency,
         wallet: any,
@@ -34,6 +35,7 @@ export class WalletService {
         pollInterval?: number
     ) :Promise<DepositDto>;
 
+    //создать заявку на пополнение наличными
     createCashInvoice(
         amount: number | string,
         countryName?: string,
@@ -46,10 +48,12 @@ export class WalletService {
         multiplyOf? : number
     ): Promise<any>;
 
+    //отменить заявку на пополнение наличными
     cancelCashInvoice(
         orderId: string
     ): Promise<any>;
 
+    //получить запись из истории по хешу транзакции
     getHistoryEntryByTxId(
         txId: string,
     ) : Promise<any> | undefined;

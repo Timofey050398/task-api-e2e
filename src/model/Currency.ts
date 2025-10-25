@@ -26,13 +26,14 @@ export const Currencies = {
     TON: { name: "TON", id: 2130, type: CurrencyType.CRYPTO, network: Network.TON },
 } as const;
 
-export function getMinAmount(currency: typeof Currencies[keyof typeof Currencies]) {
-    if (currency.type === CurrencyType.FIAT
-    || currency === Currencies.TON || currency === Currencies.TRX) {
+export function getMinAmount(currency: Currency) {
+    if (currency.type === CurrencyType.FIAT ) return 0.01;
+
+    if (currency === Currencies.TON || currency === Currencies.TRX) {
         return 0.0001;
     }
-    if ('tokenContract' in currency) {
-        return 0.000001;
+    if ('decimal' in currency) {
+        return 1 / 10 ** currency.decimal;
     }
     if (currency === Currencies.BTC){
         return 0.000003;

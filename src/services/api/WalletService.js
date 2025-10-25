@@ -15,8 +15,7 @@ export class WalletService {
     }
 
     async depositCrypto(amount, currency, walletId) {
-        const currencyLabel = resolveCurrencyLabel(currency);
-        return await step(`deposit ${currencyLabel} for ${amount}`, async () => {
+        return await step(`deposit ${currency.name} for ${amount}`, async () => {
             if (!currency || amount === undefined || amount === null) {
                 throw new Error("Amount and currency required");
             }
@@ -32,17 +31,17 @@ export class WalletService {
     }
 
     async waitForDepositConfirm(currency, wallet, txResult, timeoutMs = 60 * 1000, pollIntervalMs = 1000) {
-        const currencyLabel = resolveCurrencyLabel(currency, wallet);
+        const currencyName = currency.name;
         const txHash = txResult?.txHash ?? "unknown";
 
-        return await step(`wait ${timeoutMs}ms for ${currencyLabel} deposit ${txHash} confirmation`, async () => {
+        return await step(`wait ${timeoutMs}ms for ${currencyName} deposit ${txHash} confirmation`, async () => {
             const initialBalance = parseAmount(wallet?.balance);
             const sentAmount = parseAmount(txResult?.sentAmount);
             const expectedBalance = addAmounts(initialBalance, sentAmount);
             const startedAt = Date.now();
 
             this.logger?.info?.(
-                `[${currencyLabel}] Waiting for confirmation`,
+                `[${currencyName}] Waiting for confirmation`,
                 { txHash, timeoutMs, pollIntervalMs, expectedBalance: expectedBalance.value.toString() },
             );
 
@@ -57,7 +56,7 @@ export class WalletService {
 
                     if (compareAmounts(updatedBalance, expectedBalance) >= 0) {
                         this.logger?.info?.(
-                            `[${currencyLabel}] Deposit confirmed`,
+                            `[${currencyName}] Deposit confirmed`,
                             {
                                 txHash,
                                 attempts,
@@ -76,14 +75,14 @@ export class WalletService {
                 await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
             }
 
-            const error = new Error(`Transaction ${txHash} on ${currencyLabel} was not deposited within ${timeoutMs}ms`);
+            const error = new Error(`Transaction ${txHash} on ${currencyName} was not deposited within ${timeoutMs}ms`);
             error.transactionId = txHash;
             error.elapsedMs = Date.now() - startedAt;
             error.attempts = attempts;
             error.expectedBalance = expectedBalance.value.toString();
 
             this.logger?.error?.(
-                `[${currencyLabel}] deposit confirmation timeout`,
+                `[${currencyName}] deposit confirmation timeout`,
                 {
                     txHash,
                     attempts,
@@ -111,50 +110,60 @@ export class WalletService {
         },
         multiplyOf = 100
     ) {
-        if (!(day instanceof Date) || isNaN(day.getTime())) {
-            if (day instanceof String ) {
-                day = new Date(day);
-            } else {
-                throw new Error("Incorrect date format");
+        return await step(`create cash invoice for ${amount} ${currency.name}`, async () => {
+            if (!(day instanceof Date) || isNaN(day.getTime())) {
+                if (day instanceof String) {
+                    day = new Date(day);
+                } else {
+                    throw new Error("Incorrect date format");
+                }
             }
-        }
-        const dateTimestamp = day.getTime();
-        const {country, city, office} = await this.#findLocation(countryName, locationOption.cityOption, locationOption.officeOption);
+            const dateTimestamp = day.getTime();
+            const {
+                country,
+                city,
+                office
+            } = await this.#findLocation(countryName, locationOption.cityOption, locationOption.officeOption);
 
-        const slot = await this.#getFreeSlot(office, day);
+            const slot = await this.#getFreeSlot(office, day);
 
-        const wallet = await this.#findOrCreateWallet(currency);
-        const accountId = wallet?.accountID;
+            const wallet = await this.#findOrCreateWallet(currency);
+            const accountId = wallet?.accountID;
 
-        if (!accountId) {
-            throw new Error("Incorrect account ID");
-        }
+            if (!accountId) {
+                throw new Error("Incorrect account ID");
+            }
 
-        const response = await this.cashClient.createCashInvoice(
-            accountId,
-            amount,
-            city.cityId,
-            client,
-            comment,
-            companion,
-            country.countryId,
-            currency.id,
-            dateTimestamp + slot,
-            multiplyOf,
-            office.id
-        );
+            const response = await this.cashClient.createCashInvoice(
+                accountId,
+                amount,
+                city.cityId,
+                client,
+                comment,
+                companion,
+                country.countryId,
+                currency.id,
+                dateTimestamp + slot,
+                multiplyOf,
+                office.id
+            );
 
-        return response?.data;
+            return response?.data;
+        });
     }
 
     async cancelCashInvoice(orderId){
-        const response = await this.cashClient.cancelCashInvoice(orderId);
-        return response?.data;
+        return await step(`cancel cash invoice ${orderId}`, async () => {
+            const response = await this.cashClient.cancelCashInvoice(orderId);
+            return response?.data;
+        });
     }
 
     async getHistoryEntryByTxId(txId){
-        const response = await this.accountClient.getHistory();
-        return response?.data?.order?.find(order => order.txHash === txId);
+        return await step(`get history entry with tx hash ${txId}`, async () => {
+            const response = await this.accountClient.getHistory();
+            return response?.data?.order?.find(order => order.txHash === txId);
+        });
     }
 
     async #getFreeSlot(office, day) {
@@ -206,8 +215,7 @@ export class WalletService {
     }
 
     async #findOrCreateWallet(currency, walletId) {
-        const currencyLabel = resolveCurrencyLabel(currency);
-        return await step(`find or create wallet for currency ${currencyLabel}`, async () => {
+        return await step(`find or create wallet for currency ${currency.name}`, async () => {
             if (walletId) {
                 const walletById = await this.getWalletById(walletId);
                 if (!walletById) {
@@ -236,29 +244,35 @@ export class WalletService {
     }
 
     async createWallet(currency, name) {
-        let response;
-        if (currency.type === CurrencyType.CRYPTO) {
-            response = await this.accountClient.createCryptoWallet(currency.id, 1, name);
-        } else if (currency.type === CurrencyType.FIAT) {
-            response = await this.accountClient.createFiatWallet(currency.id, name);
-        } else {
-            throw new Error("Unsupported currency type");
-        }
-        return response?.data;
+        return await step(`create wallet for ${currency.name} with name ${name}`, async () => {
+            let response;
+            if (currency.type === CurrencyType.CRYPTO) {
+                response = await this.accountClient.createCryptoWallet(currency.id, 1, name);
+            } else if (currency.type === CurrencyType.FIAT) {
+                response = await this.accountClient.createFiatWallet(currency.id, name);
+            } else {
+                throw new Error("Unsupported currency type");
+            }
+            return response?.data;
+        });
     }
 
     async getWalletById(walletId) {
-        if (!walletId) {
-            return undefined;
-        }
+        return await step(`get wallet by id ${walletId}`, async () => {
+            if (!walletId) {
+                return undefined;
+            }
 
-        const wallets = await this.#loadWallets();
-        return wallets.find((wallet) => wallet.id === walletId);
+            const wallets = await this.#loadWallets();
+            return wallets.find((wallet) => wallet.id === walletId);
+        });
     }
 
     async deleteWallet(walletId) {
-        const response = await this.accountClient.deleteWallet(walletId);
-        return response?.data;
+        return await step(`delete wallet with id ${walletId}`, async () => {
+            const response = await this.accountClient.deleteWallet(walletId);
+            return response?.data;
+        });
     }
 
     async getWalletByCurrencyId(currencyId) {
@@ -275,43 +289,6 @@ export class WalletService {
         return response?.data?.ungroupedWallets ?? [];
     }
 
-}
-
-function resolveCurrencyLabel(currency, wallet) {
-    if (currency) {
-        const directMatch = Object.entries(Currencies).find(([, value]) => value === currency || value.id === currency.id);
-        if (directMatch) {
-            return directMatch[0];
-        }
-
-        if (currency.currencyName) {
-            return currency.currencyName;
-        }
-
-        if (currency.key) {
-            return currency.key;
-        }
-
-        if (currency.id !== undefined) {
-            return String(currency.id);
-        }
-    }
-
-    if (wallet) {
-        if (wallet.currencyName) {
-            return wallet.currencyName;
-        }
-
-        if (wallet.currencyID !== undefined) {
-            const matchById = Object.entries(Currencies).find(([, value]) => value.id === wallet.currencyID);
-            if (matchById) {
-                return matchById[0];
-            }
-            return String(wallet.currencyID);
-        }
-    }
-
-    return "unknown";
 }
 
 function parseAmount(value) {

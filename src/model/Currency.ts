@@ -32,15 +32,18 @@ export function getMinAmount(currency: Currency) {
     if (currency === Currencies.TON || currency === Currencies.TRX) {
         return 0.0001;
     }
-    if ('decimal' in currency) {
-        return 1 / 10 ** currency.decimal;
-    }
+
     if (currency === Currencies.BTC){
         return 0.000003;
     }
     if (currency === Currencies.ETH){
         return '0.0000000001';
     }
+
+    if ('decimal' in currency) {
+        return 1 / 10 ** currency.decimal;
+    }
+
     throw new Error(`Unsupported currency type ${currency.type}`);
 }
 

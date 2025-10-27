@@ -45,7 +45,7 @@ test.describe('wallet flow', () => {
                 depositDto.txResult
             );
 
-            const historyEntry = await  walletService.getHistoryEntryByTxId(depositDto.txResult.txHash);
+            const historyEntry = await walletService.getHistoryEntryByTxId(depositDto.txResult.txHash);
 
             await assertExist(historyEntry,`Транзакция ${depositDto.txResult} не отобразилась в истории`)
         });

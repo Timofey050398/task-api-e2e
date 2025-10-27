@@ -9,6 +9,7 @@ test.describe('wallet flow', () => {
             const receiverAddress = await blockchain.generateRandomAddress(currency);
             const txResult = await blockchain.sendToken(receiverAddress,getMinAmount(currency),currency);
             console.log(`txResult: ${txResult}`);
+            console.log(await blockchain.getTx(txResult.txHash, currency));
         });
     }
 });

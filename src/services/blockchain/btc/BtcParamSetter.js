@@ -3,6 +3,7 @@ import {
     createBlockstreamUtxoProvider, createMempoolFeeRateProvider
 } from "./providers";
 import {Currencies} from "../../../model/Currency";
+import * as ecc from 'tiny-secp256k1';
 import {
     resolveBitcoinNetwork,
     resolveBitcoinNetworkName,
@@ -29,7 +30,7 @@ export class BtcParamSetter {
         this.btcService = btcService;
     }
 
-    setParams(options) {
+    setParams(options = {}) {
         const networkName = resolveBitcoinNetworkName(options.bitcoinNetwork);
         this.btcService.bitcoinNetwork = resolveBitcoinNetwork(networkName);
         this.btcService.bitcoinNetworkName = networkName;

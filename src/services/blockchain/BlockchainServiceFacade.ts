@@ -1,24 +1,24 @@
-import {BtcTransactionService, EthTransactionService, TonTransactionService, TronTransactionService,} from "./index";
+import {BtcService, EthService, TonService, TronService,} from "./index";
 import {Currency, CurrencyType} from "../../model/Currency";
 import {Network} from "../../model/Network";
 import {TxResult} from "../../model/TxResult";
-import {BlockchainService} from "../../model/BlockchainService";
+import {BlockchainService} from "./BlockchainService";
 
 type ServiceRegistry = Record<Network, BlockchainService>;
 
 export class BlockchainServiceFacade {
-    readonly btc: BtcTransactionService & BlockchainService;
-    readonly eth: EthTransactionService & BlockchainService;
-    readonly tron: TronTransactionService & BlockchainService;
-    readonly ton: TonTransactionService & BlockchainService;
+    readonly btc: BlockchainService;
+    readonly eth: EthService & BlockchainService;
+    readonly tron: TronService & BlockchainService;
+    readonly ton: TonService & BlockchainService;
 
     private readonly services: ServiceRegistry;
 
     constructor() {
-        this.btc = new BtcTransactionService() as BtcTransactionService & BlockchainService;
-        this.eth = new EthTransactionService() as EthTransactionService & BlockchainService;
-        this.tron = new TronTransactionService() as TronTransactionService & BlockchainService;
-        this.ton = new TonTransactionService() as TonTransactionService & BlockchainService;
+        this.btc = new BtcService() as BtcService & BlockchainService;
+        this.eth = new EthService() as EthService & BlockchainService;
+        this.tron = new TronService() as TronService & BlockchainService;
+        this.ton = new TonService() as TonService & BlockchainService;
 
         this.services = {
             [Network.BTC]: this.btc,
@@ -64,5 +64,23 @@ export class BlockchainServiceFacade {
             throw new Error(`Unsupported network: ${currency.network}`);
         }
         return service.generateRandomAddress();
+    }
+
+    async getTx(txHash: string, currency: Currency): Promise<{ isTxSuccess: boolean, receiver: string | null, receiveAmount: number }> {
+        if (currency.type === CurrencyType.FIAT) {
+            throw new Error("Fiat currencies are not supported");
+        }
+
+        if (!currency.network) {
+            throw new Error("Currency does not specify a blockchain network");
+        }
+        const service = this.services[currency.network];
+
+        const isToken = 'tokenContract' in currency && !!currency.tokenContract;
+        if (isToken) {
+            return await service.getTx(txHash, currency);
+        }
+
+        return await service.getTx(txHash);
     }
 }

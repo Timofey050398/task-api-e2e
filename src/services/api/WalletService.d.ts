@@ -57,4 +57,11 @@ export class WalletService {
     getHistoryEntryByTxId(
         txId: string,
     ) : Promise<any> | undefined;
+
+    loadWallets(): Promise<Wallet[]>;
+
+    findWalletsWithBalance(
+        currency: Currency,
+        amount: number | string
+    ) : Promise<Wallet[]>;
 }

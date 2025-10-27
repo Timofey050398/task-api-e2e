@@ -1,5 +1,5 @@
-export { BlockchainTransactionService } from './BlockchainTransactionService.js';
-export { BtcTransactionService } from './BtcTransactionService.js';
-export { EthTransactionService } from './EthTransactionService.js';
-export { TronTransactionService } from './TronTransactionService.js';
-export { TonTransactionService } from './TonTransactionService.js';
+export { BlockchainService } from './BlockchainService.js';
+export { BtcService } from './BtcService.js';
+export { EthService } from './EthService.js';
+export { TronService } from './TronService.js';
+export { TonService } from './TonService.js';

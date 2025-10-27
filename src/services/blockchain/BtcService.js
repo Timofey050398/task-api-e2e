@@ -1,7 +1,7 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import * as ecc from 'tiny-secp256k1';
-import { BlockchainTransactionService } from './BlockchainTransactionService.js';
+import { BlockchainService } from './BlockchainService.js';
 import { Currencies } from '../../model/Currency.js';
 import { normalizeBtcAmount } from './btc/amount.js';
 import {
@@ -96,7 +96,7 @@ function deriveNativeSegwitAddress(keyPair, network) {
     return payment.address;
 }
 
-export class BtcTransactionService extends BlockchainTransactionService {
+export class BtcService extends BlockchainService {
     constructor(options = {}) {
         super({
             ...options,
@@ -163,8 +163,60 @@ export class BtcTransactionService extends BlockchainTransactionService {
             pubkey: Buffer.from(keyPair.publicKey),
             network: btcNetwork,
         });
+        // noinspection JSValidateTypes
         return address;
     }
+
+    /**
+     * Получает информацию о транзакции по её txid.
+     * Возвращает { isTxSuccess, receiver, receiveAmount }.
+     *
+     * receiveAmount — в BTC, а не в сатоши.
+     */
+    async getTx(txid) {
+        if (!txid) {
+            throw new Error("[BTC] getTx: txid is required");
+        }
+
+        try {
+            const txData = await this.txProvider(txid);
+            if (!txData) {
+                throw new Error(`[BTC] Transaction not found for txid: ${txid}`);
+            }
+
+            const status = await this.statusProvider(txid);
+            const isTxSuccess =
+                typeof status === "boolean"
+                    ? status
+                    : status?.confirmed === true ||
+                    status?.status === "confirmed" ||
+                    status?.status === "success";
+
+            const outputs = txData.vout || txData.outputs || [];
+            let receiver = null;
+            let receiveAmount = 0;
+
+            if (outputs.length > 0) {
+                const firstOutput = outputs.find(
+                    (out) => out.scriptpubkey_address && out.value
+                );
+                if (firstOutput) {
+                    receiver = firstOutput.scriptpubkey_address;
+                    receiveAmount = Number(firstOutput.value) / 1e8; // 💰 BTC, не сатоши
+                }
+            }
+
+            return {
+                isTxSuccess,
+                receiver,
+                receiveAmount,
+            };
+        } catch (error) {
+            this.logger?.error?.("[BTC] getTx failed", { txid, error });
+            throw error;
+        }
+    }
+
 
     async send(to, value, currency = this.currency) {
         if (currency?.network && currency.network !== this.network) {

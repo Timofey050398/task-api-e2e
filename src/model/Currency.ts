@@ -40,5 +40,22 @@ export function getMinAmount(currency: Currency) {
     throw new Error(`Unsupported currency type ${currency.type}`);
 }
 
+export function getMinWithdrawAmount(currency: Currency) {
+    if (currency.type === CurrencyType.FIAT ||  'decimal' in currency) return 0.01;
+
+    if (currency === Currencies.TON || currency === Currencies.TRX) {
+        return 0.001;
+    }
+
+    if (currency === Currencies.BTC){
+        return 0.000003;
+    }
+    if (currency === Currencies.ETH){
+        return '0.0000001';
+    }
+
+    throw new Error(`Unsupported currency type ${currency.type}`);
+}
+
 export type Currency = (typeof Currencies)[CurrencyKey];
 export type CurrencyKey = keyof typeof Currencies;

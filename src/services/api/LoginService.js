@@ -15,7 +15,6 @@ export class LoginService {
     constructor(user) {
         this.user = user;
         this.loginClient = new LoginClient(false);
-        this.baseClient = new BaseClient();
         this.mailService = new MailTmService(user);
         this.tgService = new TelegramService(user);
         this.pin = this.user.pin;
@@ -79,6 +78,7 @@ export class LoginService {
         const cookies = this.loginClient.cookies ?? '';
 
         AuthCache.set({ cookies, sseToken });
+        this.baseClient = new BaseClient(this.user);
         this.baseClient.setCookies(cookies);
         this.baseClient.setHeader('x-sse-token', sseToken);
 

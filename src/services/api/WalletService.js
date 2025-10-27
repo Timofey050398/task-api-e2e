@@ -4,12 +4,14 @@ import {generateRandomName, getRandomClient} from "../../utils/randomGenerator";
 import {Currencies, CurrencyType} from "../../model/Currency";
 import {step} from "allure-js-commons";
 import {CashClient} from "../../api/clients/CashClient";
+import {MainClient} from "../../api/clients/MainClient";
 
 
 export class WalletService {
     constructor(user) {
         this.accountClient = new AccountClient(user, false);
         this.cashClient = new CashClient(user, false);
+        this.mainClient = new MainClient(user, false);
         this.blockchain = new BlockchainServiceFacade();
         this.logger = console;
     }
@@ -184,7 +186,7 @@ export class WalletService {
         cityOption,
         officeOption
     ) {
-        const countriesAndCurrenciesResponse = await this.accountClient.getSupportedCountriesAndCurrencies();
+        const countriesAndCurrenciesResponse = await this.mainClient.getSupportedCountriesAndCurrencies();
 
         const country = countriesAndCurrenciesResponse.data?.countries.find(country => country.countryName === countryName);
         if (!country) {
@@ -263,7 +265,7 @@ export class WalletService {
                 return undefined;
             }
 
-            const wallets = await this.#loadWallets();
+            const wallets = await this.loadWallets();
             return wallets.find((wallet) => wallet.id === walletId);
         });
     }
@@ -280,13 +282,23 @@ export class WalletService {
             return undefined;
         }
 
-        const wallets = await this.#loadWallets();
+        const wallets = await this.loadWallets();
         return wallets.find((wallet) => wallet.currencyID === currencyId);
     }
 
-    async #loadWallets() {
+    async loadWallets() {
         const response = await this.accountClient.getAccounts();
         return response?.data?.ungroupedWallets ?? [];
+    }
+
+    async findWalletsWithBalance(currency, amount) {
+        let wallets = await this.loadWallets();
+        wallets = wallets.filter(wallet => wallet.currencyID === currency.id);
+        wallets = wallets.filter(wallet => Number(wallet.balance) >= amount);
+        if (!wallets[0]){
+            throw new Error('Wallet with balance grater or equal then ${amount} ${currency.name} not found.');
+        }
+        return wallets;
     }
 
 }

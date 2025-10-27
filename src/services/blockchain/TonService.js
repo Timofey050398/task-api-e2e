@@ -1,5 +1,5 @@
 import TonWeb from 'tonweb';
-import { BlockchainTransactionService } from './BlockchainTransactionService.js';
+import { BlockchainService } from './BlockchainService.js';
 import { Currencies } from '../../model/Currency.js';
 import { Network } from '../../model/Network.js';
 import { resolveTonEndpoint, resolveTonNetworkName } from './ton/config.js';
@@ -14,7 +14,7 @@ import { createTonSeqnoStatusProvider } from './ton/providers.js';
 import { ONE_MINUTE_MS } from './ton/constants.js';
 import {randomBytes} from "node:crypto";
 
-export class TonTransactionService extends BlockchainTransactionService {
+export class TonService extends BlockchainService {
     constructor(options = {}) {
         const networkName = resolveTonNetworkName();
         super({
@@ -24,10 +24,10 @@ export class TonTransactionService extends BlockchainTransactionService {
             pollIntervalMs: options.pollIntervalMs ?? 5 * 1000,
         });
 
-        const { hexToBytes } = TonWeb.utils;
+        const {hexToBytes} = TonWeb.utils;
         this.apiKey = process.env.TON_API_KEY;
 
-        const parseHexKey = (value, { expectedBytes, envName }) => {
+        const parseHexKey = (value, {expectedBytes, envName}) => {
             if (!value) return undefined;
 
             const bytes = hexToBytes(value);
@@ -56,7 +56,7 @@ export class TonTransactionService extends BlockchainTransactionService {
 
         this.tonWeb =
             options.tonWeb ??
-            createTonWeb({ apiKey: this.apiKey, endpoint: this.tonEndpoint });
+            createTonWeb({apiKey: this.apiKey, endpoint: this.tonEndpoint});
 
         this.defaultWalletVersion = options.defaultWalletVersion ?? 'v4R2';
         this.defaultWorkchain = options.defaultWorkchain ?? 0;
@@ -64,10 +64,11 @@ export class TonTransactionService extends BlockchainTransactionService {
     }
 
     async generateRandomAddress() {
-        const { Address } = TonWeb.utils;
+        const {Address} = TonWeb.utils;
         const randomHash = randomBytes(32).toString("hex");
         const address = new Address(`0:${randomHash}`);
         const isMainnet = Boolean(process.env.TON_API_KEY);
+        // noinspection JSValidateTypes
         return address.toString(true, true, true, !isMainnet);
     }
 
@@ -80,21 +81,17 @@ export class TonTransactionService extends BlockchainTransactionService {
             throw new Error('Only TON network supported');
         }
 
-        if ('tokenContract' in currency && currency.tokenContract) {
-            return this.sendTokenTransaction(toAddress, amount, currency);
-        }
-
         return this.sendNativeTransaction(toAddress, amount);
     }
 
     getWalletContract({
-        publicKey = this.publicKey,
-        version = this.defaultWalletVersion,
-        workchain = this.defaultWorkchain,
-    } = {}) {
+                          publicKey = this.publicKey,
+                          version = this.defaultWalletVersion,
+                          workchain = this.defaultWorkchain,
+                      } = {}) {
         if (!publicKey) throw new Error('publicKey is required');
 
-        return createTonWallet(this.tonWeb, { publicKey, version, workchain });
+        return createTonWallet(this.tonWeb, {publicKey, version, workchain});
     }
 
     async sendNativeTransaction(toAddress, amount) {
@@ -103,7 +100,7 @@ export class TonTransactionService extends BlockchainTransactionService {
         if (!toAddress) throw new Error('toAddress is required');
         if (!amount) throw new Error('amount is required');
 
-        this.logger?.info?.('[TON] Sending native transaction', { toAddress, amount });
+        this.logger?.info?.('[TON] Sending native transaction', {toAddress, amount});
 
         try {
             const contract = this.getWalletContract();
@@ -136,7 +133,7 @@ export class TonTransactionService extends BlockchainTransactionService {
 
             const expectedSeqno = seqno + 1;
             await this.waitForConfirmation(response.txHash, {
-                statusProvider: createTonSeqnoStatusProvider(contract, expectedSeqno, { logger: this.logger }),
+                statusProvider: createTonSeqnoStatusProvider(contract, expectedSeqno, {logger: this.logger}),
             });
 
             return response;
@@ -146,70 +143,51 @@ export class TonTransactionService extends BlockchainTransactionService {
         }
     }
 
-    async sendTokenTransaction(toAddress, amount, currency) {
-        if (!currency) throw new Error('Currency required');
-        if (currency.network !== Network.TON) throw new Error('Only TON network supported');
-        if (!currency.tokenContract) throw new Error('Token contract missing in currency');
-
-        this.logger?.info?.('[TON] Sending token transaction', {
-            toAddress,
-            amount,
-            tokenContract: currency.tokenContract,
-        });
+    /**
+     * Получает информацию о нативной транзакции в сети TON.
+     *
+     * @param {string} txHash - идентификатор транзакции (boc hash)
+     * @param {Currency | undefined} currency - объект валюты, может содержать decimal
+     * @returns {Promise<{ isTxSuccess: boolean, receiver: string | null, receiveAmount: number }>}
+     */
+    async getTx(txHash) {
+        if (!txHash) {
+            throw new Error("[TON] getTx: txHash is required");
+        }
 
         try {
-            const contract = this.getWalletContract();
-            const seqnoRaw = await contract.methods.seqno().call();
-            const seqno = normalizeSeqno(seqnoRaw);
-
             const tonWeb = this.tonWeb;
-            const { Address, BN, toNano } = TonWeb.utils;
-
-            const { token } = tonWeb;
-            if (!token?.ft?.JettonWallet) {
-                throw new Error('JettonWallet class not found in tonWeb.token.ft');
+            if (!tonWeb) {
+                throw new Error("[TON] tonWeb client not initialized");
             }
 
-            const jettonWallet = new token.ft.JettonWallet(tonWeb.provider, {
-                address: new Address(currency.tokenContract),
-            });
+            // 1️⃣ Получаем данные транзакции
+            const tx = await tonWeb.provider.getTransaction(txHash).catch(() => null);
+            if (!tx) {
+                throw new Error(`[TON] Transaction not found for hash: ${txHash}`);
+            }
 
-            const responseAddr = contract.address;
-            const amountUnits = scaleByDecimals(amount, currency.decimal ?? 9);
-            const payload = await jettonWallet.methods.transfer({
-                amount: new BN(amountUnits),
-                toAddress: new Address(toAddress),
-                responseAddress: responseAddr,
-                forwardAmount: new BN(toNano('0.02').toString()),
-                forwardPayload: null,
-            }).getData();
+            // 2️⃣ Проверяем статус
+            const isTxSuccess = tx?.in_msg?.value || tx?.out_msgs?.length > 0;
 
-            const result = await contract.methods.transfer({
-                secretKey: this.secretKey,
-                toAddress: jettonWallet.address.toString(true, true, true),
-                amount: toNano('0.05'),
-                seqno,
-                payload,
-                sendMode: 3,
-            }).send();
+            // 3️⃣ Определяем получателя и сумму
+            let receiver = null;
+            let receiveAmount = 0;
 
-            const response = {
-                currency: currency,
-                txHash: result?.id?.hash ?? 'unknown',
-                sentAmount: amount,
-                fee: '0.05',
-            };
+            // Используем первый выходящий message
+            if (tx.out_msgs && tx.out_msgs.length > 0) {
+                const msg = tx.out_msgs[0];
+                receiver = msg.destination?.address ?? null;
 
-            this.logger?.info?.('[TON] Token transaction sent', response);
+                // Получаем value в нанотонах (BigInt)
+                const rawValue = BigInt(msg.value ?? 0);
+                const decimals = 9; // TON — 9 знаков после запятой
+                receiveAmount = Number(rawValue) / 10 ** decimals;
+            }
 
-            const expectedSeqno = seqno + 1;
-            await this.waitForConfirmation(response.txHash, {
-                statusProvider: createTonSeqnoStatusProvider(contract, expectedSeqno, { logger: this.logger }),
-            });
-
-            return response;
+            return {isTxSuccess, receiver, receiveAmount};
         } catch (error) {
-            this.logger?.error?.('[TON] Failed to send token transaction', error);
+            this.logger?.error?.("[TON] getTx failed", {txHash, error});
             throw error;
         }
     }

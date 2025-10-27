@@ -1,5 +1,5 @@
 import {parseUnits, formatUnits, Contract} from 'ethers';
-import { BlockchainTransactionService } from './BlockchainTransactionService.js';
+import { BlockchainService } from './BlockchainService.js';
 import { Network } from '../../model/Network.js';
 import { Currencies } from '../../model/Currency.js';
 import {
@@ -13,7 +13,7 @@ import {randomBytes} from "node:crypto";
 const ONE_MINUTE = 60 * 1000;
 const DEFAULT_ERC20_ABI = ['function transfer(address to, uint256 amount) returns (bool)'];
 
-export class EthTransactionService extends BlockchainTransactionService {
+export class EthService extends BlockchainService {
     constructor(options = {}) {
         const networkName = resolveEthNetworkName();
         super({
@@ -57,7 +57,79 @@ export class EthTransactionService extends BlockchainTransactionService {
     }
 
     async generateRandomAddress() {
+        // noinspection JSValidateTypes
         return `0x${randomBytes(20).toString("hex")}`;
+    }
+
+    /**
+     * Получает информацию о транзакции в сети Ethereum (ETH или ERC-20).
+     *
+     * @param {string} txHash - хеш транзакции
+     * @param {Currency | undefined} currency - объект валюты (может содержать .decimal и .tokenContract)
+     * @returns {Promise<{ isTxSuccess: boolean, receiver: string | null, receiveAmount: number }>}
+     */
+    async getTx(txHash, currency) {
+        if (!txHash) {
+            throw new Error("[ETH] getTx: txHash is required");
+        }
+
+        try {
+            const tx = await this.provider.getTransaction(txHash);
+            if (!tx) {
+                throw new Error(`[ETH] Transaction not found for hash: ${txHash}`);
+            }
+
+            const receipt = await this.provider.getTransactionReceipt(txHash);
+            if (!receipt) {
+                throw new Error(`[ETH] Receipt not found for hash: ${txHash}`);
+            }
+
+            const isTxSuccess = receipt.status === 1 || receipt.status === 1n;
+            let receiver = tx.to ?? null;
+            let receiveAmount = 0;
+
+            const decimals = currency?.decimal ?? 18;
+
+            if (!tx.data || tx.data === "0x" || tx.data.length <= 10) {
+                receiveAmount = Number(formatUnits(tx.value ?? 0, decimals));
+            }
+
+            else if (tx.data.startsWith("0xa9059cbb")) {
+                // Стандартная сигнатура transfer(address,uint256)
+                const recipientHex = "0x" + tx.data.slice(34, 74);
+                const amountHex = tx.data.slice(74);
+
+                receiver = recipientHex.toLowerCase();
+                const rawAmount = BigInt("0x" + amountHex);
+                receiveAmount = Number(formatUnits(rawAmount, decimals));
+            }
+
+            else if (receipt.logs?.length) {
+                try {
+                    const transferTopic =
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+                    const log = receipt.logs.find(
+                        (l) =>
+                            l.topics?.[0]?.toLowerCase() === transferTopic &&
+                            l.topics?.length === 3
+                    );
+
+                    if (log) {
+                        const recipient = "0x" + log.topics[2].slice(26);
+                        receiver = recipient.toLowerCase();
+                        const rawAmount = BigInt(log.data);
+                        receiveAmount = Number(formatUnits(rawAmount, decimals));
+                    }
+                } catch (parseError) {
+                    this.logger?.warn?.("[ETH] Failed to parse logs for transfer", parseError);
+                }
+            }
+
+            return { isTxSuccess, receiver, receiveAmount };
+        } catch (error) {
+            this.logger?.error?.("[ETH] getTx failed", { txHash, error });
+            throw error;
+        }
     }
 
     async send(to, amount, currency) {

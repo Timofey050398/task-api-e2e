@@ -7,6 +7,8 @@ import { MailTmService } from '../services/mail/MailTmService';
 import {ApiFacade} from "../api/ApiFacade";
 import {BlockchainServiceFacade} from "../services/blockchain/BlockchainServiceFacade";
 import {WalletService} from "../services/api/WalletService";
+import {CertService} from "../services/api/CertService";
+import {WithdrawService} from "../services/api/WithdrawService";
 dotenv.config();
 
 interface PooledUser extends User {
@@ -42,6 +44,8 @@ function releaseUser(login: string): void {
 type Fixtures = {
     loginService: LoginService;
     walletService: WalletService;
+    certService: CertService;
+    withdrawService: WithdrawService;
     api: ApiFacade;
     mailService: MailTmService;
     blockchain : BlockchainServiceFacade;
@@ -73,6 +77,17 @@ const test = base.extend<Fixtures, WorkerFixtures>({
     loginService: async ({ user }, use) => {
         const loginService = new LoginService(user);
         await use(loginService);
+    },
+
+    certService: async ({ user }, use) => {
+        const certService = new CertService(user);
+        await use(certService);
+    },
+
+
+    withdrawService: async ({ user }, use) => {
+        const withdrawService = new WithdrawService(user);
+        await use(withdrawService);
     },
 
     walletService: async ({ user }, use) => {

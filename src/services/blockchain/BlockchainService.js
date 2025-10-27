@@ -1,4 +1,4 @@
-export class BlockchainTransactionService {
+export class BlockchainService {
     /**
      * @param {Object} options
      * @param {string} options.network
@@ -43,6 +43,13 @@ export class BlockchainTransactionService {
         this.statusProvider = statusProvider;
     }
 
+    async send() {
+        throw new Error("Method send() must be implemented by subclass");
+    }
+
+    async generateRandomAddress() {
+        throw new Error("Method generateRandomAddress() must be implemented by subclass");
+    }
     /**
      * Waits for the transaction to be confirmed using polling.
      *

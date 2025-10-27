@@ -47,3 +47,18 @@ export function estimateTonFee() {
     const baseFeeNano = BigInt(200_000_000); // ~0.2 TON запасом
     return fromNano(baseFeeNano.toString());
 }
+
+/**
+ * Преобразует адрес из формата 0:<hex> в base64url-формат TON (например, для Tonkeeper).
+ *
+ * @param {string} rawAddress - адрес в формате 0:<hex>
+ * @returns {string} base64url адрес
+ */
+export function toFriendlyAddress(rawAddress) {
+    if (!rawAddress) {
+        return rawAddress;
+    }
+    const { Address } = TonWeb.utils;
+    const address = new Address(rawAddress);
+    return address.toString(true, true, true);
+}

@@ -27,7 +27,7 @@ export class TonTxSender {
         this.tonService.logger?.info?.('[TON] Sending native transaction', {toAddress, amount});
 
         try {
-            const contract = this.tonService.#getWalletContract();
+            const contract = this.#getWalletContract();
             let seqnoRaw = await contract.methods.seqno().call();
             if (seqnoRaw === null || seqnoRaw === undefined) {
                 this.tonService.logger?.info?.('[TON] Wallet not deployed yet, sending deploy transaction...');

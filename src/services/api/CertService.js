@@ -2,6 +2,7 @@ import {MainClient} from "../../api/clients/MainClient";
 import {CertClient} from "../../api/clients/CertClient";
 import {WalletService} from "./WalletService";
 import {TelegramService} from "../telegram/TelegramService";
+import {step} from "allure-js-commons";
 
 export class CertService {
     constructor(user) {
@@ -13,51 +14,55 @@ export class CertService {
     }
 
     async createCert(currency, amount) {
-        let wallets = await this.walletService.findWalletsWithBalance(currency, amount);
-        let account;
-        for await (const target of wallets) {
-            if (target.accounts.length > 0) {
-                let targetAccounts = target.accounts.filter(account => Number(account.balance) >= amount);
-                if (targetAccounts.length > 0) {
-                    account = targetAccounts[0];
-                    break;
+        return await step(`create cert for ${amount} ${currency}`, async () => {
+            let wallets = await this.walletService.findWalletsWithBalance(currency, amount);
+            let account;
+            for await (const target of wallets) {
+                if (target.accounts.length > 0) {
+                    let targetAccounts = target.accounts.filter(account => Number(account.balance) >= amount);
+                    if (targetAccounts.length > 0) {
+                        account = targetAccounts[0];
+                        break;
+                    }
                 }
             }
-        }
-        if (!account) {
-            throw new Error("No account found for this currency");
-        }
+            if (!account) {
+                throw new Error("No account found for this currency");
+            }
 
-        await this.mainClient.sendTgCode(this.codeType);
-        const code = await this.tgClient.getTelegram2FACode();
+            await this.mainClient.sendTgCode(this.codeType);
+            const code = await this.tgClient.getTelegram2FACode();
 
-        const certResp = await this.certClient.createCert(
-            amount,
-            account.city?.id,
-            code,
-            account.country?.id,
-            account.id
-        )
+            const certResp = await this.certClient.createCert(
+                amount,
+                account.city?.id,
+                code,
+                account.country?.id,
+                account.id
+            )
 
-        const cert = certResp.data?.cert;
-        if (!cert) {
-            throw new Error("No cert found for this currency");
-        }
-        return cert;
+            const cert = certResp.data?.cert;
+            if (!cert) {
+                throw new Error("No cert found for this currency");
+            }
+            return cert;
+        });
     }
 
     async useCert(cert){
-        const previewResp = await this.certClient.previewCert(cert);
-        const account = await this.#findWalletByCertPreview(previewResp.data);
+        return await step(`use cert ${cert}`, async () => {
+            const previewResp = await this.certClient.previewCert(cert);
+            const account = await this.#findWalletByCertPreview(previewResp.data);
 
-        const useResp = await this.certClient.depositByCert(
-            cert,
-            account.city.id,
-            account.country.id,
-            account.id
-        );
+            const useResp = await this.certClient.depositByCert(
+                cert,
+                account.city.id,
+                account.country.id,
+                account.id
+            );
 
-        return useResp.data?.orderID;
+            return useResp.data?.orderID;
+        });
     }
 
     async #findWalletByCertPreview(preview) {

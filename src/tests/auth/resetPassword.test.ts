@@ -16,11 +16,13 @@ test.describe('change password flow', () => {
         const response = await api.login.resetPassword(login);
 
         await step('assert reset password response', async () => {
+            await new Promise(resolve => setTimeout(resolve, 1000));
             await assertCode(response.status, 400);
             await assertEquals(response.data.message, LOGIN_OR_MAIL_NOT_EXIST, 'error message ');
         });
     });
     test('should get error when reset email not found', async ({api}) => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const login = generateEmail();
 
         const response = await api.login.resetPassword(login);
@@ -30,10 +32,12 @@ test.describe('change password flow', () => {
             await assertEquals(response.data.message, LOGIN_OR_MAIL_NOT_EXIST, 'error message ');
         });
     });
-    test('should successfully change password', async ({ loginService }) => {
-        await loginService.changePassword();
+    test('should successfully change password', async ({ apiService }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await apiService.login.changePassword();
     });
     test('should get error when code wrong', async ({ user, api }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const login = user.login;
         const resetPasswordResponse = await api.login.resetPassword(login);
         await assertCode(resetPasswordResponse.status, 200);
@@ -46,6 +50,8 @@ test.describe('change password flow', () => {
     });
 
     test('should get error when code old', async ({ user, api, mailService }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         const login = user.login;
         await mailService.init();
         let resetPasswordResponse = await api.login.resetPassword(login);
@@ -62,7 +68,9 @@ test.describe('change password flow', () => {
         });
     });
 
-    test('should get error when password incorrect', async ({ user , loginService , api, mailService }) => {
+    test('should get error when password incorrect', async ({ user , apiService , api, mailService }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         const login = user.login;
         await mailService.init();
 
@@ -78,7 +86,7 @@ test.describe('change password flow', () => {
 
         try {
             if (response.status === 200) {
-                await loginService.changePassword();
+                await apiService.login.changePassword();
             }
         } finally {
             await step('assert get reset password token response', async () => {

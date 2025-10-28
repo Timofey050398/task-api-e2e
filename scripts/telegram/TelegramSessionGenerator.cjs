@@ -3,7 +3,7 @@ const { TelegramClient } = require('telegram');          // ✅ добавляе
 const { StringSession } = require('telegram/sessions');
 require('dotenv').config();
 const input = require('input');
-const {USER_ONE} = require("../../constants/Users");
+const {USER_ONE} = require("../../src/constants/Users");
 
 /**
  * Скрипт для получения ключа TG_SESSION.

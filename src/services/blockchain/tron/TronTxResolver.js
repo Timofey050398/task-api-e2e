@@ -12,6 +12,7 @@ export class TronTxResolver {
      * @returns {Promise<{ isTxSuccess: boolean, receiver: string | null, receiveAmount: number }>}
      */
     async getTx(txId, currency) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         if (!txId) {
             throw new Error("[TRON] getTx: txId is required");
         }
@@ -29,7 +30,13 @@ export class TronTxResolver {
             }
 
             const receipt = await tronWeb.trx.getTransactionInfo(txId).catch(() => null);
-            const isTxSuccess = receipt?.receipt?.result === "SUCCESS" || receipt?.result === "SUCCESS";
+            const isTxSuccess =
+                receipt?.receipt?.result === "SUCCESS" ||
+                receipt?.result === "SUCCESS" ||
+                receipt?.contractRet === "SUCCESS" ||
+                receipt?.ret?.some((r) => r.contractRet === "SUCCESS") ||
+                txInfo?.ret.some((r) => r.contractRet === "SUCCESS");
+
 
             let receiver = null;
             let receiveAmount = 0;

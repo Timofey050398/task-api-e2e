@@ -16,6 +16,18 @@ export async function assertEquals(actual, expected, subject = '', message) {
 }
 
 /**
+ * Сравнивает два числа с учётом плавающей погрешности (floating-point tolerance).
+ *
+ * @param {number} actual - полученное значение
+ * @param {number} expected - ожидаемое значение
+ * @param {number} [tolerance=1e-8] - допустимая погрешность (по умолчанию ~8 знаков точности)
+ */
+export async function assertNumberEquals(actual, expected, tolerance = 1e-8) {
+    const diff = Math.abs(Number(actual) - Number(expected));
+    await assertEquals(diff <= tolerance, true);
+}
+
+/**
  * Упрощённая проверка HTTP-кода
  */
 export async function assertCode(actual, expected) {

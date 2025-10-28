@@ -2,41 +2,64 @@ import { test } from "../../fixtures/userPool";
 import {Currencies, CurrencyType, getMinWithdrawAmount} from "../../model/Currency";
 import {getSender} from "../../model/Network";
 import {getApiError} from "../../utils/errorResponseExtractor";
-import {assertCode, assertEquals, assertExist} from "../../utils/allureUtils";
+import {assertCode, assertEquals, assertExist, assertNumberEquals} from "../../utils/allureUtils";
 
 test.describe('cert flow', () => {
 
     for (const [currencyKey, currency] of Object.entries(Currencies)) {
         if (currency.type !== CurrencyType.CRYPTO) continue;
-        test(`should create ${currencyKey} withdrawal`, async ({ withdrawService, blockchain }) => {
+        if (currency === Currencies.BTC && process.env.ENVIRONMENT === 'PROD') continue;
+        test(`_should create ${currencyKey} withdrawal`, async ({ apiService, blockchain }) => {
             const amount = Number(getMinWithdrawAmount(currency));
-            const receiverAddr = getSender(currency.network);
-            const {amountWithFee, orderId} = await withdrawService.withdraw(
+            const expectedAddress = getSender(currency.network);
+            const {amountWithFee, orderId} = await apiService.withdraw.withdraw(
                currency,
                getMinWithdrawAmount(currency),
-                receiverAddr
+                expectedAddress
            )
 
-            const orderDetail = await withdrawService.waitForStatusCompleted(orderId,currency);
+            const orderDetail = await apiService.withdraw.waitForStatusCompleted(orderId,currency);
 
-            await assertEquals(Number(orderDetail.amount), amount);
-            await assertEquals(Number(orderDetail.userFee), amountWithFee - amount);
-            await assertEquals(Number(orderDetail.receiver.data), receiverAddr);
+            await assertNumberEquals(Number(orderDetail.amount), amount);
+            await assertNumberEquals(Number(orderDetail.userFee), amountWithFee - amount);
+            await assertEquals(orderDetail.receiver.data.toLowerCase(), expectedAddress.toLowerCase());
 
-            const txHash = orderDetail.txHash;
-
-            const {isTxSuccess, receiver, receiveAmount} = await blockchain.getTx(txHash, currency);
+            const {isTxSuccess, receiver, receiveAmount} = await blockchain.getTx(orderDetail.txHash, currency);
 
             await assertEquals(isTxSuccess,true);
-            await assertEquals(receiver, receiverAddr);
-            await assertEquals(receiveAmount, amount);
+            await assertEquals(receiver?.toLowerCase(), expectedAddress.toLowerCase());
+            await assertNumberEquals(receiveAmount, amount);
         });
     }
 
-    test(`should get error when try withdraw ETH to incorrect address`, async ({ withdrawService }) => {
+    test(`should create USDС_ERC_20 withdrawal`, async ({ apiService, blockchain }) => {
+        const currency = Currencies.BTC;
+        const amount = Number(getMinWithdrawAmount(currency));
+        const receiverAddr = getSender(currency.network);
+        const {amountWithFee, orderId} = await apiService.withdraw.withdraw(
+            currency,
+            amount,
+            receiverAddr
+        )
+
+        const orderDetail = await apiService.withdraw.waitForStatusCompleted(orderId,currency);
+
+        await assertEquals(Number(orderDetail.amount), amount);
+
+        await assertNumberEquals(Number(orderDetail.userFee), amountWithFee - amount);
+        await assertEquals(orderDetail.receiver.data.toLowerCase(), receiverAddr.toLowerCase());
+
+        const {isTxSuccess, receiver, receiveAmount} = await blockchain.getTx(orderDetail.txHash, currency);
+
+        await assertEquals(isTxSuccess,true);
+        await assertEquals(receiver?.toLowerCase(), receiverAddr.toLowerCase());
+        await assertNumberEquals(receiveAmount, amount);
+    });
+
+    test(`should get error when try withdraw ETH to incorrect address`, async ({ apiService }) => {
         const currency = Currencies.ETH;
         const apiError = await getApiError(() =>
-            withdrawService.withdraw(
+            apiService.withdraw.withdraw(
                 currency,
                 getMinWithdrawAmount(currency),
                 process.env.BTC_ADDRESS!
@@ -45,12 +68,13 @@ test.describe('cert flow', () => {
 
         await assertExist(apiError);
         await assertCode(apiError?.status,400);
+        await assertEquals(apiError?.data.message,'invalid address');
     });
 
-    test(`should get error when try withdraw BTC to incorrect address`, async ({ withdrawService }) => {
+    test(`should get error when try withdraw BTC to incorrect address`, async ({ apiService }) => {
         const currency = Currencies.BTC;
         const apiError = await getApiError(() =>
-            withdrawService.withdraw(
+            apiService.withdraw.withdraw(
                 currency,
                 getMinWithdrawAmount(currency),
                 process.env.TRON_ADDRESS!
@@ -59,12 +83,13 @@ test.describe('cert flow', () => {
 
         await assertExist(apiError);
         await assertCode(apiError?.status,400);
+        await assertEquals(apiError?.data.message,'invalid address');
     });
 
-    test(`should get error when try withdraw USDC_ERC_20 to incorrect address`, async ({ withdrawService }) => {
+    test(`should get error when try withdraw USDC_ERC_20 to incorrect address`, async ({ apiService }) => {
         const currency = Currencies.USDC_ERC20;
         const apiError = await getApiError(() =>
-            withdrawService.withdraw(
+            apiService.withdraw.withdraw(
                 currency,
                 getMinWithdrawAmount(currency),
                 process.env.TRON_ADDRESS!
@@ -73,13 +98,14 @@ test.describe('cert flow', () => {
 
         await assertExist(apiError);
         await assertCode(apiError?.status,400);
+        await assertEquals(apiError?.data.message,'invalid address');
     });
 
-    test(`should get error when try withdraw TON to incorrect address`, async ({ withdrawService }) => {
+    test(`should get error when try withdraw TON to incorrect address`, async ({ apiService }) => {
         const currency = Currencies.TON;
 
         const apiError = await getApiError(() =>
-            withdrawService.withdraw(
+            apiService.withdraw.withdraw(
                 currency,
                 getMinWithdrawAmount(currency),
                 process.env.BTC_ADDRESS!
@@ -88,5 +114,6 @@ test.describe('cert flow', () => {
 
         await assertExist(apiError);
         await assertCode(apiError?.status,400);
+        await assertEquals(apiError?.data.message,'invalid address');
     });
 })

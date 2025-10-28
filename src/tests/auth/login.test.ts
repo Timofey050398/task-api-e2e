@@ -7,8 +7,8 @@ import {step} from "allure-js-commons";
 test.describe('login flow', () => {
     test.setTimeout(60000);
 
-    test('should successfully login', async ({ loginService }) => {
-        await loginService.login();
+    test('should successfully login', async ({ apiService }) => {
+        await apiService.login.login();
     });
 
     test('should get error when password wrong', async ({ user , api }) => {
@@ -35,6 +35,7 @@ test.describe('login flow', () => {
     });
 
     test('should get error when tg code wrong', async ({ user, api }) => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const login = user.login;
 
         const responseSignIn = await api.login.signInRequest(login, user.password);
@@ -43,6 +44,7 @@ test.describe('login flow', () => {
         const response = await api.login.signInConfirm(login, '111111');
 
         await step('assert sign in confirm response', async () => {
+            await new Promise(resolve => setTimeout(resolve, 1000));
             await assertCode(response.status, 400);
             await assertEquals(response.data.message, INVALID_CONFIRMATION_CODE, 'error message');
         });

@@ -27,7 +27,7 @@ export class TelegramService {
 
             const session = new StringSession(sessionString);
             const client = new TelegramClient(session, apiId, apiHash, {
-                connectionRetries: 5,
+                connectionRetries: 5, requestRetries: 5, timeout: 360000
             });
 
             console.log("[Telegram] Connecting...");
@@ -59,6 +59,7 @@ export class TelegramService {
 
 
             await client.disconnect();
+            await new Promise(r => setTimeout(r, 1000));
             return twoFaCode;
         });
     }

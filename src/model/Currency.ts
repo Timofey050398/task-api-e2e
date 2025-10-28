@@ -44,7 +44,7 @@ export function getMinWithdrawAmount(currency: Currency) {
     if (currency.type === CurrencyType.FIAT ||  'decimal' in currency) return 0.01;
 
     if (currency === Currencies.TON || currency === Currencies.TRX) {
-        return 0.001;
+        return 0.01;
     }
 
     if (currency === Currencies.BTC){

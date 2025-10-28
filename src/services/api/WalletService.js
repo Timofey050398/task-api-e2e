@@ -6,6 +6,11 @@ import {step} from "allure-js-commons";
 import {CashClient} from "../../api/clients/CashClient";
 import {MainClient} from "../../api/clients/MainClient";
 
+function tomorrow(){
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+}
 
 export class WalletService {
     constructor(user) {
@@ -101,36 +106,36 @@ export class WalletService {
         amount,
         countryName = "Россия",
         currency = Currencies.RUB,
-        day = new Date().toISOString().split('T')[0],
+        day = tomorrow(),
         client = getRandomClient(),
         comment = "",
         companion = {name:"",surname:"", patronymic:""},
         locationOption =
         {
-            cityOption : {first: true},
-            officeOption : {first: false}
+            cityOption : {name: "Москва"},
+            officeOption : {first: true}
         },
         multiplyOf = 100
     ) {
         return await step(`create cash invoice for ${amount} ${currency.name}`, async () => {
             if (!(day instanceof Date) || isNaN(day.getTime())) {
-                if (day instanceof String) {
+                if (typeof day === "string") {
                     day = new Date(day);
                 } else {
                     throw new Error("Incorrect date format");
                 }
             }
-            const dateTimestamp = day.getTime();
+            const dateTimestamp = day.getTime() / 1000;
             const {
                 country,
                 city,
                 office
             } = await this.#findLocation(countryName, locationOption.cityOption, locationOption.officeOption);
 
-            const slot = await this.#getFreeSlot(office, day);
+            const slot = await this.#getFreeSlot(office, dateTimestamp);
 
             const wallet = await this.#findOrCreateWallet(currency);
-            const accountId = wallet?.accountID;
+            const accountId = wallet?.id;
 
             if (!accountId) {
                 throw new Error("Incorrect account ID");
@@ -168,8 +173,8 @@ export class WalletService {
         });
     }
 
-    async #getFreeSlot(office, day) {
-        const slotsResponse = await this.cashClient.getInvoiceSlots(day.getTime(), office.id);
+    async #getFreeSlot(office, timestamp) {
+        const slotsResponse = await this.cashClient.getInvoiceSlots(timestamp, office.id);
         const slot = slotsResponse.data?.slots[0]?.time;
         if (!slot) {
             throw new Error(`Could not find slot at office ${office.address} at date ${day}`);
@@ -203,12 +208,11 @@ export class WalletService {
         }
 
         const officesResponse = await this.cashClient.getCashOffices(city.cityId, country.countryId);
-        let office;
-        if (officeOption.first) {
-            office = officesResponse.data?.offices[0];
-        } else {
-            office = officesResponse.data?.offices.find(office => office.address === officeOption.address);
-        }
+
+        const office = officesResponse.data?.offices.find(
+            office => office.cityID === city.cityId
+            && office.countryID === country.countryId
+        );
 
         if (!office) {
             throw new Error("Could not find office");
@@ -278,27 +282,33 @@ export class WalletService {
     }
 
     async getWalletByCurrencyId(currencyId) {
-        if (currencyId === undefined || currencyId === null) {
-            return undefined;
-        }
+        return await step(`get wallet by currency id ${currencyId}`, async () => {
+            if (currencyId === undefined || currencyId === null) {
+                return undefined;
+            }
 
-        const wallets = await this.loadWallets();
-        return wallets.find((wallet) => wallet.currencyID === currencyId);
+            const wallets = await this.loadWallets();
+            return wallets.find((wallet) => wallet.currencyID === currencyId);
+        });
     }
 
     async loadWallets() {
-        const response = await this.accountClient.getAccounts();
-        return response?.data?.ungroupedWallets ?? [];
+        return await step(`get wallet list`, async () => {
+            const response = await this.accountClient.getAccounts();
+            return response?.data?.ungroupedWallets ?? [];
+        });
     }
 
     async findWalletsWithBalance(currency, amount) {
-        let wallets = await this.loadWallets();
-        wallets = wallets.filter(wallet => wallet.currencyID === currency.id);
-        wallets = wallets.filter(wallet => Number(wallet.balance) >= amount);
-        if (!wallets[0]){
-            throw new Error('Wallet with balance grater or equal then ${amount} ${currency.name} not found.');
-        }
-        return wallets;
+        return await step(`find wallet with balance greater than ${amount} ${currency.name}`, async () => {
+            let wallets = await this.loadWallets();
+            wallets = wallets.filter(wallet => wallet.currencyID === currency.id);
+            wallets = wallets.filter(wallet => Number(wallet.balance) >= amount);
+            if (!wallets[0]) {
+                throw new Error('Wallet with balance grater or equal then ${amount} ${currency.name} not found.');
+            }
+            return wallets;
+        });
     }
 
 }

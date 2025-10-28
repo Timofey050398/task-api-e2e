@@ -9,7 +9,10 @@ export async function getApiError<T>(
         throw new Error("Ожидали ошибку, а был успех");
     } catch (err: unknown) {
         if (err instanceof AxiosError) {
-            if (err.response) return err.response;
+            if (err.response) {
+                console.log(err.response.data);
+                return err.response;
+            }
             throw new Error("AxiosError без response");
         }
         throw err; // Не axios — пробрасываем дальше

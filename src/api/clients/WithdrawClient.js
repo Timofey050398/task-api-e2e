@@ -1,5 +1,4 @@
 import {BaseClient} from "./core/BaseClient";
-import {getServiceInstance} from "../../model/Network";
 
 export class WithdrawClient extends BaseClient {
     constructor(user, processErrors = true) {

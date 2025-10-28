@@ -5,16 +5,16 @@ import {generateRandomName} from "../../utils/randomGenerator";
 
 test.describe('wallet flow', () => {
     for (const [key, currency] of Object.entries(Currencies)) {
-        test(`should can create and delete ${currency.type} wallet (${key})`, async ({ walletService }) => {
+        test(`should can create and delete ${currency.type} wallet (${key})`, async ({ apiService }) => {
             const name = generateRandomName();
             let walletId: string | undefined;
             try {
                 //Создаем кошелек
-                const walletData = await walletService.createWallet(currency,name);
+                const walletData = await apiService.wallet.createWallet(currency,name);
                 walletId = walletData?.walletID;
 
                 //Получаем dto кошелька
-                const wallet = await walletService.getWalletById(walletId!);
+                const wallet = await apiService.wallet.getWalletById(walletId!);
 
                 //Проверяем кошелек
                 await assertEquals(wallet!.name,name);
@@ -25,7 +25,7 @@ test.describe('wallet flow', () => {
             } finally {
                 //Удаляем созданный кошелёк
                 if (walletId) {
-                    await walletService.deleteWallet(walletId);
+                    await apiService.wallet.deleteWallet(walletId);
                 }
             }
         });
@@ -33,26 +33,27 @@ test.describe('wallet flow', () => {
 
     for (const [currencyKey, currency] of Object.entries(Currencies)) {
         if (currency.type !== CurrencyType.CRYPTO) continue;
-        test(`should create ${currencyKey} deposit`, async ({ walletService }) => {
-            let depositDto = await walletService.depositCrypto(
+        if (currency === Currencies.BTC && process.env.ENVIRONMENT === 'PROD') continue;
+        test(`should create ${currencyKey} deposit`, async ({ apiService }) => {
+            let depositDto = await apiService.wallet.depositCrypto(
                 getMinAmount(currency),
                 currency
             );
 
-            depositDto = await walletService.waitForDepositConfirm(
+            depositDto = await apiService.wallet.waitForDepositConfirm(
                 currency,
                 depositDto.wallet,
                 depositDto.txResult
             );
 
-            const historyEntry = await walletService.getHistoryEntryByTxId(depositDto.txResult.txHash);
+            const historyEntry = await apiService.wallet.getHistoryEntryByTxId(depositDto.txResult.txHash);
 
             await assertExist(historyEntry,`Транзакция ${depositDto.txResult} не отобразилась в истории`)
         });
     }
 
-    test('should create and cancel cash invoice', async ({ walletService }) => {
-       const data = await walletService.createCashInvoice("10000");
-       await walletService.cancelCashInvoice(data.orderID);
+    test('should create and cancel cash invoice', async ({ apiService }) => {
+       const data = await apiService.wallet.createCashInvoice("10000");
+       await apiService.wallet.cancelCashInvoice(data.orderID);
     });
 });

@@ -17,7 +17,7 @@ export function getSender(network: Network): string {
         case Network.TRON:
             return process.env.TRON_ADDRESS!;
         case Network.TON:
-            return process.env.TON_ADDRESS!;
+            return process.env.TON_WALLET_PUBLIC_KEY!;
         default:
             throw new Error(`Unsupported network: ${network}`);
     }

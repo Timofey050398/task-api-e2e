@@ -15,6 +15,12 @@ export async function assertEquals(actual, expected, subject = '', message) {
     });
 }
 
+export async function assertEqualsIgnoreCase(actual, expected, subject = '', message) {
+    const actualStr = String(actual).toLowerCase();
+    const expectedStr = String(expected).toLowerCase();
+    return await assertEquals(actualStr, expectedStr, subject, message);
+}
+
 /**
  * Сравнивает два числа с учётом плавающей погрешности (floating-point tolerance).
  *

@@ -46,11 +46,29 @@ test.describe('wallet flow', () => {
                 depositDto.txResult
             );
 
-            const historyEntry = await apiService.wallet.getHistoryEntryByTxId(depositDto.txResult.txHash);
+            const historyEntry = await apiService.wallet.getLastHistoryEntry();
 
-            await assertExist(historyEntry,`Транзакция ${depositDto.txResult} не отобразилась в истории`)
+            await apiService.wallet.compareHistoryEntry(historyEntry,depositDto);
         });
     }
+
+    test(`trx deposit`, async ({ apiService }) => {
+        const currency = Currencies.USDT_TRC20;
+        let depositDto = await apiService.wallet.depositCrypto(
+            getMinAmount(currency),
+            currency
+        );
+
+        depositDto = await apiService.wallet.waitForDepositConfirm(
+            currency,
+            depositDto.wallet,
+            depositDto.txResult
+        );
+
+        const historyEntry = await apiService.wallet.getLastHistoryEntry();
+
+        await apiService.wallet.compareHistoryEntry(historyEntry,depositDto);
+    });
 
     test('should create and cancel cash invoice', async ({ apiService }) => {
        const data = await apiService.wallet.createCashInvoice("10000");

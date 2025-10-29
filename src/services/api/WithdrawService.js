@@ -4,6 +4,7 @@ import {WalletService} from "./WalletService";
 import {MainClient} from "../../api/clients/MainClient";
 import {getServiceInstance} from "../../model/Network";
 import {step} from "allure-js-commons";
+import {Currencies} from "../../model/Currency";
 
 
 export class WithdrawService {
@@ -77,7 +78,9 @@ export class WithdrawService {
     async waitForStatusCompleted(orderId, currency, pollIntervalMs = 15000) {
         return await step(`wait for order ${orderId} completed in application`, async () => {
             const fiveMinutesMs = 60 * 1000 * 5;
-            const timeoutMs = getServiceInstance(currency.network).recommendedConfirmationTimeMs + fiveMinutesMs;
+            const timeoutMs = currency === Currencies.BTC
+                ? 60 * 1000 * 90
+                : getServiceInstance(currency.network).recommendedConfirmationTimeMs + fiveMinutesMs;
             const start = Date.now();
 
             while (Date.now() - start < timeoutMs) {

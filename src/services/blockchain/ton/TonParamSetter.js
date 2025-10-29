@@ -2,7 +2,7 @@ import TonWeb from "tonweb";
 import {resolveTonEndpoint} from "./config";
 import {createTonWeb} from "./wallet";
 import {Currencies} from "../../../model/Currency";
-import {TonTxSender} from "./TonTxSender";
+import TonTxSender from "./TonTxSender";
 import {TonTxResolver} from "./TonTxResolver";
 
 export class TonParamSetter {
@@ -45,7 +45,7 @@ export class TonParamSetter {
             options.tonWeb ??
             createTonWeb({apiKey: this.tonService.apiKey, endpoint: this.tonService.tonEndpoint});
 
-        this.tonService.defaultWalletVersion = options.defaultWalletVersion ?? 'v4R2';
+        this.tonService.defaultWalletVersion = 'v4R2';
         this.tonService.defaultWorkchain = options.defaultWorkchain ?? 0;
         this.tonService.currency = Currencies.TON;
         this.tonService.txResolver = new TonTxResolver(this.tonService);

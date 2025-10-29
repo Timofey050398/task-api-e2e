@@ -2,9 +2,15 @@ import { test } from "../../fixtures/userPool";
 import {Currencies, CurrencyType, getMinWithdrawAmount} from "../../model/Currency";
 import {getSender} from "../../model/Network";
 import {getApiError} from "../../utils/errorResponseExtractor";
-import {assertCode, assertEquals, assertExist, assertNumberEquals} from "../../utils/allureUtils";
+import {
+    assertCode,
+    assertEquals,
+    assertEqualsIgnoreCase,
+    assertExist,
+    assertNumberEquals
+} from "../../utils/allureUtils";
 
-test.describe('cert flow', () => {
+test.describe('withdrawal flow', () => {
 
     for (const [currencyKey, currency] of Object.entries(Currencies)) {
         if (currency.type !== CurrencyType.CRYPTO) continue;
@@ -22,39 +28,15 @@ test.describe('cert flow', () => {
 
             await assertNumberEquals(Number(orderDetail.amount), amount);
             await assertNumberEquals(Number(orderDetail.userFee), amountWithFee - amount);
-            await assertEquals(orderDetail.receiver.data.toLowerCase(), expectedAddress.toLowerCase());
+            await assertEqualsIgnoreCase(orderDetail.receiver.data, expectedAddress);
 
             const {isTxSuccess, receiver, receiveAmount} = await blockchain.getTx(orderDetail.txHash, currency);
 
             await assertEquals(isTxSuccess,true);
-            await assertEquals(receiver?.toLowerCase(), expectedAddress.toLowerCase());
+            await assertEqualsIgnoreCase(receiver, expectedAddress);
             await assertNumberEquals(receiveAmount, amount);
         });
     }
-
-    test(`should create USDС_ERC_20 withdrawal`, async ({ apiService, blockchain }) => {
-        const currency = Currencies.BTC;
-        const amount = Number(getMinWithdrawAmount(currency));
-        const receiverAddr = getSender(currency.network);
-        const {amountWithFee, orderId} = await apiService.withdraw.withdraw(
-            currency,
-            amount,
-            receiverAddr
-        )
-
-        const orderDetail = await apiService.withdraw.waitForStatusCompleted(orderId,currency);
-
-        await assertEquals(Number(orderDetail.amount), amount);
-
-        await assertNumberEquals(Number(orderDetail.userFee), amountWithFee - amount);
-        await assertEquals(orderDetail.receiver.data.toLowerCase(), receiverAddr.toLowerCase());
-
-        const {isTxSuccess, receiver, receiveAmount} = await blockchain.getTx(orderDetail.txHash, currency);
-
-        await assertEquals(isTxSuccess,true);
-        await assertEquals(receiver?.toLowerCase(), receiverAddr.toLowerCase());
-        await assertNumberEquals(receiveAmount, amount);
-    });
 
     test(`should get error when try withdraw ETH to incorrect address`, async ({ apiService }) => {
         const currency = Currencies.ETH;

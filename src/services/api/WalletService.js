@@ -5,6 +5,8 @@ import {Currencies, CurrencyType} from "../../model/Currency";
 import {step} from "allure-js-commons";
 import {CashClient} from "../../api/clients/CashClient";
 import {MainClient} from "../../api/clients/MainClient";
+import {getServiceInstance} from "../../model/Network";
+import {assertEquals, assertEqualsIgnoreCase} from "../../utils/allureUtils";
 
 function tomorrow(){
     const tomorrow = new Date();
@@ -37,9 +39,12 @@ export class WalletService {
         });
     }
 
-    async waitForDepositConfirm(currency, wallet, txResult, timeoutMs = 60 * 1000, pollIntervalMs = 1000) {
+    async waitForDepositConfirm(currency, wallet, txResult, pollIntervalMs = 10000) {
         const currencyName = currency.name;
         const txHash = txResult?.txHash ?? "unknown";
+        const timeoutMs = currency === Currencies.BTC
+            ? 60 * 1000 * 90
+            : getServiceInstance(currency.network).recommendedConfirmationTimeMs + 60 * 1000 * 5;
 
         return await step(`wait ${timeoutMs}ms for ${currencyName} deposit ${txHash} confirmation`, async () => {
             const initialBalance = parseAmount(wallet?.balance);
@@ -61,7 +66,7 @@ export class WalletService {
                 if (updatedWallet) {
                     const updatedBalance = parseAmount(updatedWallet.balance);
 
-                    if (compareAmounts(updatedBalance, expectedBalance) >= 0) {
+                    if (compareAmounts(updatedBalance, expectedBalance) === 0) {
                         this.logger?.info?.(
                             `[${currencyName}] Deposit confirmed`,
                             {
@@ -166,10 +171,19 @@ export class WalletService {
         });
     }
 
-    async getHistoryEntryByTxId(txId){
-        return await step(`get history entry with tx hash ${txId}`, async () => {
+    async getLastHistoryEntry(){
+        return await step(`get last history entry`, async () => {
             const response = await this.accountClient.getHistory();
-            return response?.data?.order?.find(order => order.txHash === txId);
+            return response?.data?.order[0];
+        });
+    }
+
+    async compareHistoryEntry(entry, depositDto){
+        await step(`get last history entry`, async () => {
+            await assertEquals(entry.type,"cryptoInvoice");
+            await assertEquals(Number(entry.amount), depositDto.txResult.sentAmount);
+            await assertEquals(entry.currencyID, depositDto.wallet.currencyID);
+            await assertEqualsIgnoreCase(entry.receiver.data, depositDto.wallet.address);
         });
     }
 

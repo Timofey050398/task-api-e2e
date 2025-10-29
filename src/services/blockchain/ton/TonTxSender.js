@@ -2,8 +2,9 @@ import {createTonWallet} from "./wallet";
 import {estimateTonFee, normalizeSeqno, normalizeTonAmount} from "./utils";
 import {Currencies} from "../../../model/Currency";
 import {createTonSeqnoStatusProvider} from "./providers";
+import {Address} from "@ton/core";
 
-export class TonTxSender {
+class TonTxSender {
     constructor(tonService) {
         this.tonService = tonService;
     }
@@ -38,9 +39,12 @@ export class TonTxSender {
             const seqno = normalizeSeqno(seqnoRaw);
             const amountNano = normalizeTonAmount(amount);
 
-            const result = await contract.methods.transfer({
+            const parsed = Address.parseFriendly(toAddress);
+            const nonBouncing = parsed.address.toString({ bounceable: false });
+
+            await contract.methods.transfer({
                 secretKey: this.tonService.secretKey,
-                toAddress,
+                toAddress: nonBouncing,
                 amount: amountNano,
                 seqno,
                 sendMode: 3,
@@ -48,7 +52,7 @@ export class TonTxSender {
 
             const response = {
                 currency: Currencies.TON,
-                txHash: result?.id?.hash ?? 'unknown',
+                txHash: 'unknown',
                 sentAmount: amount,
                 fee: estimateTonFee(),
             };
@@ -67,3 +71,5 @@ export class TonTxSender {
         }
     }
 }
+
+export default TonTxSender

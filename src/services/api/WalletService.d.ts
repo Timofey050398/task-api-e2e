@@ -31,7 +31,6 @@ export class WalletService {
         currency: Currency,
         wallet: any,
         txResult: TxResult,
-        timeoutMs?: number ,
         pollInterval?: number
     ) :Promise<DepositDto>;
 
@@ -54,9 +53,12 @@ export class WalletService {
     ): Promise<any>;
 
     //получить запись из истории по хешу транзакции
-    getHistoryEntryByTxId(
-        txId: string,
-    ) : Promise<any> | undefined;
+    getLastHistoryEntry() : Promise<any> | undefined;
+
+    compareHistoryEntry(
+        entry : any,
+        depositDto: DepositDto,
+    ) : Promise<void>;
 
     loadWallets(): Promise<Wallet[]>;
 

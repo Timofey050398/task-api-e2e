@@ -46,7 +46,7 @@ export class WalletService {
             ? 60 * 1000 * 90
             : getServiceInstance(currency.network).recommendedConfirmationTimeMs + 60 * 1000 * 5;
 
-        return await step(`wait ${timeoutMs}ms for ${currencyName} deposit ${txHash} confirmation`, async () => {
+        return await step(`wait ${timeoutMs} ms for ${currencyName} deposit ${txHash} confirmation`, async () => {
             const initialBalance = parseAmount(wallet?.balance);
             const sentAmount = parseAmount(txResult?.sentAmount);
             const expectedBalance = addAmounts(initialBalance, sentAmount);
@@ -179,7 +179,7 @@ export class WalletService {
     }
 
     async compareHistoryEntry(entry, depositDto){
-        await step(`get last history entry`, async () => {
+        await step(`compare history entry`, async () => {
             await assertEquals(entry.type,"cryptoInvoice");
             await assertEquals(Number(entry.amount), depositDto.txResult.sentAmount);
             await assertEquals(entry.currencyID, depositDto.wallet.currencyID);

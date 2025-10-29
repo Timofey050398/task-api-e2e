@@ -14,7 +14,7 @@ export class CertService {
     }
 
     async createCert(currency, amount) {
-        return await step(`create cert for ${amount} ${currency}`, async () => {
+        return await step(`create cert for ${amount} ${currency.name}`, async () => {
             let wallets = await this.walletService.findWalletsWithBalance(currency, amount);
             let account;
             for await (const target of wallets) {

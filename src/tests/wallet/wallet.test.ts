@@ -1,5 +1,5 @@
 import { test } from "../../fixtures/userPool";
-import {assertEquals, assertExist} from "../../utils/allureUtils";
+import {assertEquals} from "../../utils/allureUtils";
 import {Currencies, CurrencyType, getMinAmount} from "../../model/Currency";
 import {generateRandomName} from "../../utils/randomGenerator";
 
@@ -51,24 +51,6 @@ test.describe('wallet flow', () => {
             await apiService.wallet.compareHistoryEntry(historyEntry,depositDto);
         });
     }
-
-    test(`trx deposit`, async ({ apiService }) => {
-        const currency = Currencies.USDT_TRC20;
-        let depositDto = await apiService.wallet.depositCrypto(
-            getMinAmount(currency),
-            currency
-        );
-
-        depositDto = await apiService.wallet.waitForDepositConfirm(
-            currency,
-            depositDto.wallet,
-            depositDto.txResult
-        );
-
-        const historyEntry = await apiService.wallet.getLastHistoryEntry();
-
-        await apiService.wallet.compareHistoryEntry(historyEntry,depositDto);
-    });
 
     test('should create and cancel cash invoice', async ({ apiService }) => {
        const data = await apiService.wallet.createCashInvoice("10000");
